@@ -22,6 +22,7 @@ let records = load();
 let stations = loadStations();
 let editingId = null;
 let editingStationId = null;
+let pendingImportData = null;
 
 const app = document.querySelector('#app');
 app.innerHTML = `
@@ -117,6 +118,20 @@ app.innerHTML = `
       </div>
     </section>
   </main>
+
+  <div class="modalBackdrop" id="csvModal" style="display:none;">
+    <div class="modal">
+      <div class="modalHead">
+        <h2>CSV导入预览</h2>
+        <button class="modalClose" id="closeCsvModal">&times;</button>
+      </div>
+      <div class="modalBody" id="csvModalBody"></div>
+      <div class="modalFoot">
+        <button class="ghost" id="cancelCsvImport">取消</button>
+        <button class="primary" id="confirmCsvImport" disabled>确认导入</button>
+      </div>
+    </div>
+  </div>
 `;
 
 const form = document.querySelector('#recordForm');
@@ -146,6 +161,12 @@ document.querySelector('#importSample').addEventListener('click', () => {
 });
 document.querySelector('#exportCsv').addEventListener('click', () => downloadCsv(records));
 document.querySelector('#csvInput').addEventListener('change', importCsv);
+document.querySelector('#closeCsvModal').addEventListener('click', closeCsvModal);
+document.querySelector('#cancelCsvImport').addEventListener('click', closeCsvModal);
+document.querySelector('#confirmCsvImport').addEventListener('click', confirmCsvImport);
+document.querySelector('#csvModal').addEventListener('click', (e) => {
+  if (e.target.id === 'csvModal') closeCsvModal();
+});
 
 stationForm.addEventListener('submit', (event) => {
   event.preventDefault();
@@ -320,15 +341,254 @@ function remove(id) {
   render();
 }
 
+function parseCsvLine(line) {
+  const result = [];
+  let current = '';
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+    if (char === '"') {
+      inQuotes = !inQuotes;
+    } else if (char === ',' && !inQuotes) {
+      result.push(current.trim());
+      current = '';
+    } else {
+      current += char;
+    }
+  }
+  result.push(current.trim());
+  return result;
+}
+
+function detectFieldMapping(headers) {
+  const mapping = {};
+  const headerMap = {
+    'place': 'place', '地点': 'place', '站点': 'place',
+    'date': 'date', '日期': 'date',
+    'time': 'time', '时间': 'time',
+    'level': 'level', '潮位': 'level', '水位': 'level',
+    'windDir': 'windDir', '风向': 'windDir',
+    'wind': 'wind', '风速': 'wind',
+    'weather': 'weather', '天气': 'weather',
+    'note': 'note', '备注': 'note', '说明': 'note'
+  };
+  headers.forEach((header, index) => {
+    const cleanHeader = header.toLowerCase().trim();
+    if (headerMap[header] || headerMap[cleanHeader]) {
+      const field = headerMap[header] || headerMap[cleanHeader];
+      mapping[field] = index;
+    }
+  });
+  return mapping;
+}
+
+function validateDate(dateStr) {
+  if (!dateStr) return false;
+  const regex = /^\d{4}-\d{2}-\d{2}$/;
+  if (!regex.test(dateStr)) return false;
+  const date = new Date(dateStr);
+  return date instanceof Date && !isNaN(date);
+}
+
+function validateRow(row, mapping, lineNum) {
+  const errors = [];
+  const data = {
+    place: mapping.place !== undefined ? row[mapping.place] : '',
+    date: mapping.date !== undefined ? row[mapping.date] : '',
+    time: mapping.time !== undefined ? row[mapping.time] : '',
+    level: mapping.level !== undefined ? row[mapping.level] : '',
+    windDir: mapping.windDir !== undefined ? row[mapping.windDir] : '',
+    wind: mapping.wind !== undefined ? row[mapping.wind] : '',
+    weather: mapping.weather !== undefined ? row[mapping.weather] : '',
+    note: mapping.note !== undefined ? row[mapping.note] : ''
+  };
+  if (!data.place || !data.place.trim()) {
+    errors.push({ field: '地点', message: '地点不能为空', value: data.place });
+  }
+  if (!validateDate(data.date)) {
+    errors.push({ field: '日期', message: '日期格式非法，请使用YYYY-MM-DD格式', value: data.date });
+  }
+  const levelNum = Number(data.level);
+  if (data.level === '' || isNaN(levelNum)) {
+    errors.push({ field: '潮位', message: '潮位必须为有效数字', value: data.level });
+  }
+  const windNum = Number(data.wind);
+  if (data.wind === '' || isNaN(windNum)) {
+    errors.push({ field: '风速', message: '风速必须为有效数字', value: data.wind });
+  }
+  return {
+    lineNum,
+    valid: errors.length === 0,
+    errors,
+    data: {
+      place: data.place.trim(),
+      date: data.date.trim(),
+      time: data.time.trim(),
+      level: levelNum,
+      windDir: data.windDir.trim(),
+      wind: windNum,
+      weather: data.weather.trim(),
+      note: data.note.trim()
+    },
+    raw: row.join(', ')
+  };
+}
+
 function importCsv(event) {
   const file = event.target.files[0];
   if (!file) return;
+  const csvInput = document.querySelector('#csvInput');
   file.text().then((text) => {
-    const rows = text.trim().split(/\n+/).slice(1).map((line) => line.split(','));
-    records = rows.map(([place, date, time, level, windDir, wind, weather, note]) => ({ id: crypto.randomUUID(), place, date, time, level: Number(level), windDir, wind: Number(wind), weather, note }));
-    persist();
-    render();
+    const lines = text.trim().split(/\n+/);
+    if (lines.length < 2) {
+      showImportError('CSV文件为空或格式不正确，至少需要包含表头和一行数据。');
+      csvInput.value = '';
+      return;
+    }
+    const headers = parseCsvLine(lines[0]);
+    const mapping = detectFieldMapping(headers);
+    const requiredFields = ['place', 'date', 'time', 'level', 'windDir', 'wind', 'weather'];
+    const missingFields = requiredFields.filter(f => mapping[f] === undefined);
+    if (missingFields.length > 0) {
+      const fieldNames = { place: '地点', date: '日期', time: '时间', level: '潮位', windDir: '风向', wind: '风速', weather: '天气' };
+      showImportError(`CSV缺少必要字段：${missingFields.map(f => fieldNames[f]).join('、')}。\n\n检测到的表头：${headers.join('、')}\n\n请确保CSV包含上述字段，支持中英文列名。`);
+      csvInput.value = '';
+      return;
+    }
+    const rows = lines.slice(1);
+    const results = rows.map((line, index) => {
+      const row = parseCsvLine(line);
+      return validateRow(row, mapping, index + 2);
+    });
+    const validRows = results.filter(r => r.valid);
+    const errorRows = results.filter(r => !r.valid);
+    pendingImportData = {
+      validRows,
+      errorRows,
+      mapping,
+      headers,
+      fileName: file.name
+    };
+    renderCsvPreview();
+    openCsvModal();
+    csvInput.value = '';
+  }).catch(() => {
+    showImportError('文件读取失败，请检查文件是否正确。');
+    csvInput.value = '';
   });
+}
+
+function renderCsvPreview() {
+  if (!pendingImportData) return;
+  const { validRows, errorRows, mapping, headers, fileName } = pendingImportData;
+  const fieldMap = { place: '地点', date: '日期', time: '时间', level: '潮位', windDir: '风向', wind: '风速', weather: '天气', note: '备注' };
+  const mappingHtml = Object.entries(mapping).map(([field, idx]) => {
+    return `<div class="mappingItem"><span class="mappingKey">${fieldMap[field]}</span><span class="mappingArrow">→</span><span class="mappingVal">${headers[idx]}</span></div>`;
+  }).join('');
+  let errorSummary = '';
+  if (errorRows.length > 0) {
+    const errorList = errorRows.slice(0, 10).map(r => {
+      const errorMsgs = r.errors.map(e => `<span class="errorTag">${e.field}: ${e.message}</span>`).join('');
+      return `<div class="errorRow"><span class="errorLine">第${r.lineNum}行</span>${errorMsgs}<div class="errorRaw">${escapeHtml(r.raw)}</div></div>`;
+    }).join('');
+    const moreErrors = errorRows.length > 10 ? `<div class="moreErrors">...还有 ${errorRows.length - 10} 条错误未显示</div>` : '';
+    errorSummary = `
+      <div class="previewSection errorSection">
+        <h3 class="errorTitle">⚠️ 错误行摘要 (${errorRows.length} 条)</h3>
+        <div class="errorList">${errorList}${moreErrors}</div>
+        <p class="errorNote">错误行将被跳过，不会导入。</p>
+      </div>
+    `;
+  }
+  const previewRows = validRows.slice(0, 5).map(r => `
+    <tr>
+      <td>${r.lineNum}</td>
+      <td>${escapeHtml(r.data.place)}</td>
+      <td>${escapeHtml(r.data.date)}</td>
+      <td>${escapeHtml(r.data.time)}</td>
+      <td>${r.data.level}</td>
+      <td>${escapeHtml(r.data.windDir)}</td>
+      <td>${r.data.wind}</td>
+      <td>${escapeHtml(r.data.weather)}</td>
+      <td>${escapeHtml(r.data.note || '-')}</td>
+    </tr>
+  `).join('');
+  const morePreview = validRows.length > 5 ? `<div class="morePreview">...还有 ${validRows.length - 5} 条有效数据</div>` : '';
+  const html = `
+    <div class="previewHeader">
+      <div class="fileName">📄 ${escapeHtml(fileName)}</div>
+    </div>
+    <div class="previewStats">
+      <div class="statCard total"><span class="statLabel">解析总行数</span><span class="statValue">${validRows.length + errorRows.length}</span></div>
+      <div class="statCard valid"><span class="statLabel">有效行数</span><span class="statValue">${validRows.length}</span></div>
+      <div class="statCard error"><span class="statLabel">错误行数</span><span class="statValue">${errorRows.length}</span></div>
+    </div>
+    <div class="previewSection">
+      <h3>🔗 字段映射</h3>
+      <div class="mappingGrid">${mappingHtml}</div>
+    </div>
+    ${errorSummary}
+    <div class="previewSection">
+      <h3>📋 数据预览 (前5条)</h3>
+      <div class="tableWrap">
+        <table class="previewTable">
+          <thead>
+            <tr><th>行号</th><th>地点</th><th>日期</th><th>时间</th><th>潮位</th><th>风向</th><th>风速</th><th>天气</th><th>备注</th></tr>
+          </thead>
+          <tbody>${previewRows}</tbody>
+        </table>
+      </div>
+      ${morePreview}
+    </div>
+  `;
+  document.querySelector('#csvModalBody').innerHTML = html;
+  const confirmBtn = document.querySelector('#confirmCsvImport');
+  if (validRows.length > 0) {
+    confirmBtn.disabled = false;
+    confirmBtn.textContent = `确认导入 ${validRows.length} 条记录`;
+  } else {
+    confirmBtn.disabled = true;
+    confirmBtn.textContent = '没有可导入的有效数据';
+  }
+}
+
+function openCsvModal() {
+  document.querySelector('#csvModal').style.display = 'flex';
+}
+
+function closeCsvModal() {
+  document.querySelector('#csvModal').style.display = 'none';
+  pendingImportData = null;
+}
+
+function confirmCsvImport() {
+  if (!pendingImportData || pendingImportData.validRows.length === 0) return;
+  const { validRows, errorRows } = pendingImportData;
+  const newRecords = validRows.map(r => ({
+    id: crypto.randomUUID(),
+    ...r.data
+  }));
+  records = [...newRecords, ...records];
+  persist();
+  render();
+  closeCsvModal();
+  const totalImported = validRows.length;
+  const totalSkipped = errorRows.length;
+  let message = `✅ 成功导入 ${totalImported} 条观测记录。`;
+  if (totalSkipped > 0) {
+    message += `\n⚠️ 跳过 ${totalSkipped} 条错误数据，请检查CSV文件。`;
+  }
+  alert(message);
+}
+
+function showImportError(message) {
+  alert('❌ CSV导入失败\n\n' + message);
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
 }
 
 function downloadCsv(data) {

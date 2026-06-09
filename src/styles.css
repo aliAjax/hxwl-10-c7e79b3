@@ -317,4 +317,293 @@ td button {
   .panel {
     margin-top: 14px;
   }
+
+  .modal {
+    margin: 20px;
+    max-height: calc(100vh - 40px);
+  }
+
+  .previewStats {
+    grid-template-columns: 1fr !important;
+  }
+
+  .mappingGrid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+.modalBackdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(12, 58, 78, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+}
+
+.modal {
+  background: white;
+  border-radius: 12px;
+  width: 100%;
+  max-width: 900px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(12, 58, 78, 0.3);
+}
+
+.modalHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px;
+  border-bottom: 1px solid #e0efec;
+  flex-shrink: 0;
+}
+
+.modalHead h2 {
+  margin: 0;
+  color: #0d9488;
+  font-size: 20px;
+}
+
+.modalClose {
+  background: none;
+  border: none;
+  font-size: 28px;
+  color: #8899a6;
+  cursor: pointer;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  line-height: 1;
+  border-radius: 6px;
+  transition: background 0.2s;
+}
+
+.modalClose:hover {
+  background: #eef7f5;
+  color: #0d9488;
+}
+
+.modalBody {
+  padding: 24px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.modalFoot {
+  display: flex;
+  gap: 12px;
+  padding: 16px 24px;
+  border-top: 1px solid #e0efec;
+  justify-content: flex-end;
+  flex-shrink: 0;
+}
+
+.modalFoot .ghost {
+  background: #e4f5f1;
+}
+
+.modalFoot .primary {
+  width: auto;
+  padding: 10px 24px;
+}
+
+.modalFoot button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.previewHeader {
+  margin-bottom: 16px;
+}
+
+.fileName {
+  font-size: 15px;
+  color: #557084;
+  font-weight: 500;
+}
+
+.previewStats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.statCard {
+  padding: 16px;
+  border-radius: 8px;
+  text-align: center;
+}
+
+.statCard.total {
+  background: #eef7f5;
+}
+
+.statCard.valid {
+  background: #d9f3ed;
+}
+
+.statCard.error {
+  background: #feecec;
+}
+
+.statLabel {
+  display: block;
+  font-size: 13px;
+  color: #557084;
+  margin-bottom: 6px;
+}
+
+.statValue {
+  display: block;
+  font-size: 28px;
+  font-weight: 700;
+  color: #17324d;
+}
+
+.statCard.error .statValue {
+  color: #dc2626;
+}
+
+.previewSection {
+  margin-bottom: 24px;
+}
+
+.previewSection h3 {
+  margin: 0 0 12px 0;
+  font-size: 15px;
+  color: #17324d;
+}
+
+.mappingGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  background: #fbfefe;
+  border: 1px solid #e0efec;
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.mappingItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.mappingKey {
+  background: #d9f3ed;
+  color: #0d9488;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+.mappingArrow {
+  color: #8899a6;
+}
+
+.mappingVal {
+  color: #557084;
+}
+
+.errorSection {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.errorTitle {
+  color: #dc2626 !important;
+}
+
+.errorList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.errorRow {
+  background: white;
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-size: 13px;
+}
+
+.errorLine {
+  display: inline-block;
+  background: #fee2e2;
+  color: #dc2626;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-weight: 600;
+  margin-right: 8px;
+  margin-bottom: 6px;
+}
+
+.errorTag {
+  display: inline-block;
+  background: #fef3c7;
+  color: #92400e;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  margin-right: 6px;
+  margin-bottom: 6px;
+}
+
+.errorRaw {
+  color: #8899a6;
+  font-size: 12px;
+  margin-top: 4px;
+  word-break: break-all;
+}
+
+.moreErrors {
+  color: #8899a6;
+  font-size: 13px;
+  text-align: center;
+  padding: 8px;
+}
+
+.errorNote {
+  margin: 12px 0 0 0;
+  color: #dc2626;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.previewTable {
+  min-width: 100%;
+  font-size: 13px;
+}
+
+.previewTable th {
+  background: #d9f3ed;
+  color: #0d9488;
+  font-weight: 600;
+  padding: 10px;
+}
+
+.previewTable td {
+  padding: 8px 10px;
+}
+
+.previewTable tbody tr:nth-child(even) {
+  background: #fbfefe;
+}
+
+.morePreview {
+  color: #8899a6;
+  font-size: 13px;
+  text-align: center;
+  padding: 12px;
 }
