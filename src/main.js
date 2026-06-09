@@ -386,8 +386,21 @@ function validateDate(dateStr) {
   if (!dateStr) return false;
   const regex = /^\d{4}-\d{2}-\d{2}$/;
   if (!regex.test(dateStr)) return false;
+  const [year, month, day] = dateStr.split('-').map(Number);
+  if (month < 1 || month > 12) return false;
+  if (day < 1 || day > 31) return false;
+  const daysInMonth = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  const isLeapYear = (year % 4 === 0 && year % 100 !== 0) || (year % 400 === 0);
+  if (month === 2 && isLeapYear) {
+    if (day > 29) return false;
+  } else if (day > daysInMonth[month - 1]) {
+    return false;
+  }
   const date = new Date(dateStr);
-  return date instanceof Date && !isNaN(date);
+  return date instanceof Date && !isNaN(date) &&
+    date.getFullYear() === year &&
+    date.getMonth() === month - 1 &&
+    date.getDate() === day;
 }
 
 function validateRow(row, mapping, lineNum) {
