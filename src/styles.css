@@ -876,3 +876,93 @@ td button {
     margin-top: 14px;
   }
 }
+
+.listFilters {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.listFilters input {
+  flex: 1;
+  min-width: 200px;
+}
+
+.anomalyFilterBtn {
+  border: 1px solid #fecaca;
+  background: #fef2f2;
+  color: #dc2626;
+  border-radius: 6px;
+  padding: 10px 14px;
+  font-weight: 500;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.anomalyFilterBtn:hover {
+  background: #fee2e2;
+}
+
+.anomalyFilterBtn.active {
+  background: #d9f3ed;
+  border-color: #0d9488;
+  color: #0d9488;
+}
+
+.anomalyBadge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  margin-right: 4px;
+  margin-bottom: 2px;
+  cursor: help;
+}
+
+.anomalyBadge.jump {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.anomalyBadge.duplicate {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.anomalyBadge.wind {
+  background: #ede9fe;
+  color: #7c3aed;
+}
+
+.noAnomaly {
+  color: #a3b4bc;
+  font-size: 13px;
+}
+
+.anomalyRow {
+  background: #fff8f8;
+}
+
+.anomalyRow:hover {
+  background: #fff0f0 !important;
+}
+
+.stats {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+@media (max-width: 900px) {
+  .stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .listFilters {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .listFilters input {
+    min-width: auto;
+  }
+}

@@ -6,10 +6,14 @@ const snapshotStorageKey = 'hxwl-10-tide-snapshots';
 
 const seed = [
   { id: crypto.randomUUID(), place: '东极青浜', date: '2026-06-03', time: '05:40', level: 128, windDir: '东北', wind: 13, weather: '多云', note: '浪面平稳' },
+  { id: crypto.randomUUID(), place: '东极青浜', date: '2026-06-03', time: '08:20', level: 289, windDir: '东北', wind: 16, weather: '晴', note: '潮位快速上涨' },
   { id: crypto.randomUUID(), place: '东极青浜', date: '2026-06-03', time: '11:50', level: 342, windDir: '东北', wind: 18, weather: '晴', note: '午前涨潮明显' },
   { id: crypto.randomUUID(), place: '东极青浜', date: '2026-06-04', time: '18:20', level: 86, windDir: '东南', wind: 9, weather: '阴', note: '退潮后礁石外露' },
+  { id: crypto.randomUUID(), place: '东极青浜', date: '2026-06-07', time: '09:15', level: 156, windDir: '北', wind: 22, weather: '大风', note: '' },
   { id: crypto.randomUUID(), place: '嵊泗基湖', date: '2026-06-05', time: '06:15', level: 156, windDir: '南', wind: 11, weather: '晴', note: '适合晨间观察' },
+  { id: crypto.randomUUID(), place: '嵊泗基湖', date: '2026-06-05', time: '06:15', level: 162, windDir: '南', wind: 12, weather: '晴', note: '重复录入测试' },
   { id: crypto.randomUUID(), place: '嵊泗基湖', date: '2026-06-05', time: '13:05', level: 319, windDir: '西南', wind: 15, weather: '晴', note: '游客增加' },
+  { id: crypto.randomUUID(), place: '嵊泗基湖', date: '2026-06-08', time: '14:30', level: 298, windDir: '西北', wind: 25, weather: '阴', note: '' },
   { id: crypto.randomUUID(), place: '象山石浦', date: '2026-06-06', time: '10:30', level: 288, windDir: '东', wind: 21, weather: '小雨', note: '港内风浪偏大' }
 ];
 
@@ -28,6 +32,13 @@ let currentView = 'list';
 let calendarYear = new Date().getFullYear();
 let calendarMonth = new Date().getMonth();
 let selectedCalendarDate = null;
+let anomalyFilterEnabled = false;
+
+const anomalyConfig = {
+  levelJumpThreshold: 100,
+  levelJumpTimeWindowHours: 6,
+  highWindThreshold: 20
+};
 
 const app = document.querySelector('#app');
 app.innerHTML = `
@@ -118,9 +129,12 @@ app.innerHTML = `
     <section class="panel" id="listViewSection">
       <div class="panelHead">
         <h2>观测列表</h2>
-        <input id="search" placeholder="搜索地点、天气或备注" />
+        <div class="listFilters">
+          <button class="anomalyFilterBtn" id="anomalyFilterBtn">⚠️ 只看异常</button>
+          <input id="search" placeholder="搜索地点、天气或备注" />
+        </div>
       </div>
-      <div class="tableWrap"><table><thead><tr><th>时间</th><th>地点</th><th>潮位</th><th>风</th><th>天气</th><th></th></tr></thead><tbody id="rows"></tbody></table></div>
+      <div class="tableWrap"><table><thead><tr><th>时间</th><th>地点</th><th>潮位</th><th>风</th><th>天气</th><th>异常</th><th></th></tr></thead><tbody id="rows"></tbody></table></div>
     </section>
 
     <section class="panel">
@@ -204,6 +218,10 @@ form.addEventListener('submit', (event) => {
 
 search.addEventListener('input', render);
 placeFilter.addEventListener('change', render);
+document.querySelector('#anomalyFilterBtn').addEventListener('click', () => {
+  anomalyFilterEnabled = !anomalyFilterEnabled;
+  render();
+});
 document.querySelector('#importSample').addEventListener('click', () => {
   records = seed;
   persist();
@@ -633,6 +651,13 @@ function render() {
     renderCalendarDetail();
   }
   
+  const anomalies = detectAllAnomalies(records);
+  const anomalyCount = anomalies.size;
+
+  const anomalyFilterBtn = document.querySelector('#anomalyFilterBtn');
+  anomalyFilterBtn.classList.toggle('active', anomalyFilterEnabled);
+  anomalyFilterBtn.innerHTML = anomalyFilterEnabled ? '✅ 显示全部' : `⚠️ 只看异常 (${anomalyCount})`;
+
   const selectedPlace = placeFilter.value;
   const places = [...new Set(records.map((record) => record.place))].sort();
   placeFilter.innerHTML = `<option value="">全部地点</option>${places.map((place) => `<option>${place}</option>`).join('')}`;
@@ -687,20 +712,39 @@ function render() {
   document.querySelectorAll('[data-del-station]').forEach((button) =>
     button.addEventListener('click', () => removeStation(button.dataset.delStation))
   );
-  const filtered = records.filter((record) => [record.place, record.weather, record.note].join(' ').includes(search.value.trim()));
+  let filtered = records.filter((record) => [record.place, record.weather, record.note].join(' ').includes(search.value.trim()));
+  if (anomalyFilterEnabled) {
+    filtered = filtered.filter(record => anomalies.has(record.id));
+  }
   const scoped = placeFilter.value ? filtered.filter((record) => record.place === placeFilter.value) : filtered;
   document.querySelector('#stats').innerHTML = cards([
     ['记录数', records.length],
+    ['异常记录', `${anomalyCount} 条`],
     ['最高潮位', `${Math.max(...records.map((record) => record.level), 0)}cm`],
     ['平均风速', `${avg(records.map((record) => record.wind)).toFixed(1)}km/h`]
   ]);
   document.querySelector('#rows').innerHTML = scoped
     .sort(byDateDesc)
-    .map((record) => `<tr><td>${record.date} ${record.time}</td><td>${record.place}</td><td>${record.level}cm</td><td>${record.windDir} ${record.wind}km/h</td><td>${record.weather}</td><td><button data-edit="${record.id}">编辑</button><button data-del="${record.id}">删除</button></td></tr>`)
+    .map((record) => {
+      const recordAnomalies = anomalies.get(record.id) || [];
+      const anomalyBadges = recordAnomalies.map(a => 
+        `<span class="${getAnomalyBadgeClass(a.type)}" title="${escapeHtml(a.reason)}">${getAnomalyTypeLabel(a.type)}</span>`
+      ).join('');
+      const rowClass = recordAnomalies.length > 0 ? 'anomalyRow' : '';
+      return `<tr class="${rowClass}"><td>${record.date} ${record.time}</td><td>${record.place}</td><td>${record.level}cm</td><td>${record.windDir} ${record.wind}km/h</td><td>${record.weather}</td><td>${anomalyBadges || '<span class="noAnomaly">-</span>'}</td><td><button data-edit="${record.id}">编辑</button><button data-del="${record.id}">删除</button></td></tr>`;
+    })
     .join('');
   document.querySelectorAll('[data-del]').forEach((button) => button.addEventListener('click', () => remove(button.dataset.del)));
   document.querySelectorAll('[data-edit]').forEach((button) => button.addEventListener('click', () => edit(button.dataset.edit)));
-  drawLine('#todayChart', scoped.sort(byDateAsc).map((record) => ({ label: record.time, value: record.level })), 'cm');
+  
+  const todayChartData = scoped.sort(byDateAsc).map((record) => ({
+    id: record.id,
+    label: record.time,
+    value: record.level,
+    isAnomaly: anomalies.has(record.id),
+    anomalyTypes: (anomalies.get(record.id) || []).map(a => a.type)
+  }));
+  drawLine('#todayChart', todayChartData, 'cm');
   drawLine('#weekChart', dailyAverage(scoped, 'level'), 'cm');
   drawBars('#placeChart', groupAverage(filtered, 'place', 'level'), 'cm');
   renderSnapshots();
@@ -1008,6 +1052,114 @@ function byDateDesc(a, b) {
   return byDateAsc(b, a);
 }
 
+function getMinutesDiff(dateStr1, timeStr1, dateStr2, timeStr2) {
+  const dt1 = new Date(`${dateStr1}T${timeStr1}`);
+  const dt2 = new Date(`${dateStr2}T${timeStr2}`);
+  return Math.abs((dt2 - dt1) / (1000 * 60));
+}
+
+function detectLevelJumpAnomalies(records) {
+  const anomalies = new Map();
+  const places = [...new Set(records.map(r => r.place))];
+
+  places.forEach(place => {
+    const placeRecords = records
+      .filter(r => r.place === place)
+      .sort(byDateAsc);
+
+    for (let i = 1; i < placeRecords.length; i++) {
+      const prev = placeRecords[i - 1];
+      const curr = placeRecords[i];
+      const levelDiff = Math.abs(curr.level - prev.level);
+      const timeDiffHours = getMinutesDiff(prev.date, prev.time, curr.date, curr.time) / 60;
+
+      if (timeDiffHours <= anomalyConfig.levelJumpTimeWindowHours && levelDiff >= anomalyConfig.levelJumpThreshold) {
+        const reason = `潮位跳变异常：${prev.level}cm → ${curr.level}cm（${levelDiff >= 0 ? '+' : ''}${levelDiff}cm），间隔${timeDiffHours.toFixed(1)}小时`;
+        if (!anomalies.has(prev.id)) anomalies.set(prev.id, []);
+        if (!anomalies.has(curr.id)) anomalies.set(curr.id, []);
+        anomalies.get(prev.id).push({ type: 'jump', reason });
+        anomalies.get(curr.id).push({ type: 'jump', reason });
+      }
+    }
+  });
+
+  return anomalies;
+}
+
+function detectDuplicateAnomalies(records) {
+  const anomalies = new Map();
+  const keyMap = new Map();
+
+  records.forEach(record => {
+    const key = `${record.place}|${record.date}|${record.time}`;
+    if (!keyMap.has(key)) {
+      keyMap.set(key, []);
+    }
+    keyMap.get(key).push(record);
+  });
+
+  keyMap.forEach((group, key) => {
+    if (group.length > 1) {
+      const [place, date, time] = key.split('|');
+      const reason = `重复记录异常：同一地点(${place}) ${date} ${time} 存在 ${group.length} 条记录`;
+      group.forEach(record => {
+        if (!anomalies.has(record.id)) anomalies.set(record.id, []);
+        anomalies.get(record.id).push({ type: 'duplicate', reason });
+      });
+    }
+  });
+
+  return anomalies;
+}
+
+function detectHighWindNoNoteAnomalies(records) {
+  const anomalies = new Map();
+
+  records.forEach(record => {
+    if (record.wind >= anomalyConfig.highWindThreshold && (!record.note || record.note.trim() === '')) {
+      const reason = `高风速无备注异常：风速 ${record.wind}km/h（≥${anomalyConfig.highWindThreshold}km/h）但备注为空`;
+      anomalies.set(record.id, [{ type: 'wind', reason }]);
+    }
+  });
+
+  return anomalies;
+}
+
+function detectAllAnomalies(records) {
+  const anomalies = new Map();
+
+  const mergeAnomalies = (sourceAnomalies) => {
+    sourceAnomalies.forEach((anomalyList, id) => {
+      if (!anomalies.has(id)) anomalies.set(id, []);
+      anomalies.get(id).push(...anomalyList);
+    });
+  };
+
+  mergeAnomalies(detectLevelJumpAnomalies(records));
+  mergeAnomalies(detectDuplicateAnomalies(records));
+  mergeAnomalies(detectHighWindNoNoteAnomalies(records));
+
+  return anomalies;
+}
+
+function getAnomalyBadgeClass(type) {
+  const classMap = {
+    jump: 'anomalyBadge jump',
+    duplicate: 'anomalyBadge duplicate',
+    wind: 'anomalyBadge wind'
+  };
+  return classMap[type] || 'anomalyBadge';
+}
+
+function getAnomalyTypeLabel(type) {
+  const labelMap = {
+    jump: '跳变',
+    duplicate: '重复',
+    wind: '高风'
+  };
+  return labelMap[type] || '异常';
+}
+
 function dailyAverage(data, field) {
   const map = new Map();
   data.forEach((record) => {
@@ -1028,12 +1180,45 @@ function groupAverage(data, key, field) {
   return [...map.entries()].map(([label, values]) => ({ label, value: avg(values) })).sort((a, b) => b.value - a.value);
 }
 
+function getAnomalyCircleColor(anomalyTypes) {
+  if (!anomalyTypes || anomalyTypes.length === 0) return '#0d9488';
+  if (anomalyTypes.includes('jump')) return '#dc2626';
+  if (anomalyTypes.includes('duplicate')) return '#d97706';
+  if (anomalyTypes.includes('wind')) return '#7c3aed';
+  return '#dc2626';
+}
+
 function drawLine(selector, data, unit) {
   const el = document.querySelector(selector);
   if (!data.length) return (el.innerHTML = '<p class="empty">暂无数据</p>');
   const max = Math.max(...data.map((item) => item.value), 1);
   const points = data.map((item, index) => `${40 + index * (420 / Math.max(data.length - 1, 1))},${180 - (item.value / max) * 140}`).join(' ');
-  el.innerHTML = `<svg viewBox="0 0 500 220" role="img"><polyline points="${points}" fill="none" stroke="#0d9488" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>${data.map((item, index) => `<g><circle cx="${40 + index * (420 / Math.max(data.length - 1, 1))}" cy="${180 - (item.value / max) * 140}" r="5"/><text x="${40 + index * (420 / Math.max(data.length - 1, 1))}" y="205">${item.label}</text><text x="${40 + index * (420 / Math.max(data.length - 1, 1))}" y="${170 - (item.value / max) * 140}">${Math.round(item.value)}${unit}</text></g>`).join('')}</svg>`;
+  
+  const dataPoints = data.map((item, index) => {
+    const cx = 40 + index * (420 / Math.max(data.length - 1, 1));
+    const cy = 180 - (item.value / max) * 140;
+    const isAnomaly = item.isAnomaly === true;
+    const circleColor = isAnomaly ? getAnomalyCircleColor(item.anomalyTypes) : '#0d9488';
+    const circleR = isAnomaly ? 8 : 5;
+    const anomalyClass = isAnomaly ? 'anomalyPoint' : '';
+    const anomalyTitle = isAnomaly && item.anomalyTypes ? 
+      `异常类型: ${item.anomalyTypes.map(t => getAnomalyTypeLabel(t)).join('、')}` : '';
+    
+    return `
+      <g class="${anomalyClass}" title="${anomalyTitle}">
+        <circle cx="${cx}" cy="${cy}" r="${circleR}" fill="${circleColor}" stroke="white" stroke-width="2"/>
+        <text x="${cx}" y="205">${item.label}</text>
+        <text x="${cx}" y="${170 - (item.value / max) * 140}">${Math.round(item.value)}${unit}</text>
+      </g>
+    `;
+  }).join('');
+  
+  el.innerHTML = `
+    <svg viewBox="0 0 500 220" role="img">
+      <polyline points="${points}" fill="none" stroke="#0d9488" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+      ${dataPoints}
+    </svg>
+  `;
 }
 
 function drawBars(selector, data, unit) {
