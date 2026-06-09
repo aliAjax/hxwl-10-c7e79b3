@@ -560,14 +560,14 @@ function renderSnapshots() {
   const snapshots = loadSnapshots();
   const countEl = document.querySelector('#snapshotCount');
   const rowsEl = document.querySelector('#snapshotRows');
-  
+
   countEl.textContent = `${snapshots.length} 个快照`;
-  
+
   if (snapshots.length === 0) {
     rowsEl.innerHTML = '<p class="empty">暂无快照，保存当前数据创建第一个快照吧！</p>';
     return;
   }
-  
+
   rowsEl.innerHTML = `
     <div class="tableWrap">
       <table>
@@ -591,28 +591,28 @@ function renderSnapshots() {
       </table>
     </div>
   `;
-  
+
   rowsEl.querySelectorAll('[data-restore-snapshot]').forEach((button) => {
     button.addEventListener('click', () => {
       const snapshotId = button.dataset.restoreSnapshot;
       const snapshots = loadSnapshots();
       const snapshot = snapshots.find((s) => s.id === snapshotId);
       if (!snapshot) return;
-      
+
       if (confirm(`确定要恢复快照"${snapshot.name}"吗？\n\n恢复后将替换当前所有潮汐记录和站点数据，当前未保存的修改将会丢失。`)) {
         restoreSnapshot(snapshotId);
         render();
       }
     });
   });
-  
+
   rowsEl.querySelectorAll('[data-del-snapshot]').forEach((button) => {
     button.addEventListener('click', () => {
       const snapshotId = button.dataset.delSnapshot;
       const snapshots = loadSnapshots();
       const snapshot = snapshots.find((s) => s.id === snapshotId);
       if (!snapshot) return;
-      
+
       if (confirm(`确定要删除快照"${snapshot.name}"吗？此操作不可撤销。`)) {
         deleteSnapshot(snapshotId);
         render();
