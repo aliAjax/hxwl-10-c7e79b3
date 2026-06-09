@@ -2,6 +2,7 @@ import './styles.css';
 
 const storageKey = 'hxwl-10-tide-records';
 const stationStorageKey = 'hxwl-10-tide-stations';
+const snapshotStorageKey = 'hxwl-10-tide-snapshots';
 
 const seed = [
   { id: crypto.randomUUID(), place: '东极青浜', date: '2026-06-03', time: '05:40', level: 128, windDir: '东北', wind: 13, weather: '多云', note: '浪面平稳' },
@@ -147,6 +148,24 @@ app.innerHTML = `
         </div>
       </div>
     </section>
+
+    <section class="panel">
+      <div class="panelHead">
+        <h2>数据快照</h2>
+        <span id="snapshotCount" class="countBadge"></span>
+      </div>
+      <div class="snapshotLayout">
+        <form class="panel form snapshotForm" id="snapshotForm">
+          <h3 id="snapshotFormTitle">保存当前快照</h3>
+          <input name="snapshotName" placeholder="输入快照名称" required />
+          <p class="snapshotHint">将保存当前所有潮汐记录和站点数据</p>
+          <button class="primary" type="submit">📸 保存快照</button>
+        </form>
+        <div class="snapshotList">
+          <div id="snapshotRows"></div>
+        </div>
+      </div>
+    </section>
   </main>
 
   <div class="modalBackdrop" id="csvModal" style="display:none;">
@@ -170,6 +189,7 @@ const placeFilter = document.querySelector('#placeFilter');
 const stationForm = document.querySelector('#stationForm');
 const cancelStationEditBtn = document.querySelector('#cancelStationEdit');
 const stationFormTitle = document.querySelector('#stationFormTitle');
+const snapshotForm = document.querySelector('#snapshotForm');
 
 form.addEventListener('submit', (event) => {
   event.preventDefault();
@@ -250,6 +270,16 @@ cancelStationEditBtn.addEventListener('click', () => {
   stationFormTitle.textContent = '新增站点';
 });
 
+snapshotForm.addEventListener('submit', (event) => {
+  event.preventDefault();
+  const formData = new FormData(snapshotForm);
+  const name = formData.get('snapshotName');
+  if (!name || !name.trim()) return;
+  saveSnapshot(name);
+  snapshotForm.reset();
+  render();
+});
+
 function load() {
   return JSON.parse(localStorage.getItem(storageKey) || 'null') || seed;
 }
@@ -264,6 +294,52 @@ function loadStations() {
 
 function persistStations() {
   localStorage.setItem(stationStorageKey, JSON.stringify(stations));
+}
+
+function loadSnapshots() {
+  return JSON.parse(localStorage.getItem(snapshotStorageKey) || '[]');
+}
+
+function persistSnapshots(snapshots) {
+  localStorage.setItem(snapshotStorageKey, JSON.stringify(snapshots));
+}
+
+function saveSnapshot(name) {
+  const snapshots = loadSnapshots();
+  const snapshot = {
+    id: crypto.randomUUID(),
+    name: name.trim(),
+    createdAt: new Date().toISOString(),
+    records: JSON.parse(JSON.stringify(records)),
+    stations: JSON.parse(JSON.stringify(stations)),
+    recordCount: records.length,
+    stationCount: stations.length
+  };
+  snapshots.unshift(snapshot);
+  persistSnapshots(snapshots);
+  return snapshot;
+}
+
+function deleteSnapshot(id) {
+  const snapshots = loadSnapshots().filter((s) => s.id !== id);
+  persistSnapshots(snapshots);
+}
+
+function restoreSnapshot(id) {
+  const snapshots = loadSnapshots();
+  const snapshot = snapshots.find((s) => s.id === id);
+  if (!snapshot) return false;
+  records = JSON.parse(JSON.stringify(snapshot.records));
+  stations = JSON.parse(JSON.stringify(snapshot.stations));
+  persist();
+  persistStations();
+  editingId = null;
+  editingStationId = null;
+  form.reset();
+  stationForm.reset();
+  cancelStationEditBtn.style.display = 'none';
+  stationFormTitle.textContent = '新增站点';
+  return true;
 }
 
 function getRecordCountForStation(stationName) {
@@ -469,6 +545,82 @@ function renderCalendarDetail() {
   });
 }
 
+function formatDate(dateStr) {
+  const date = new Date(dateStr);
+  return date.toLocaleString('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+}
+
+function renderSnapshots() {
+  const snapshots = loadSnapshots();
+  const countEl = document.querySelector('#snapshotCount');
+  const rowsEl = document.querySelector('#snapshotRows');
+  
+  countEl.textContent = `${snapshots.length} 个快照`;
+  
+  if (snapshots.length === 0) {
+    rowsEl.innerHTML = '<p class="empty">暂无快照，保存当前数据创建第一个快照吧！</p>';
+    return;
+  }
+  
+  rowsEl.innerHTML = `
+    <div class="tableWrap">
+      <table>
+        <thead>
+          <tr><th>快照名称</th><th>创建时间</th><th>记录数</th><th>站点数</th><th></th></tr>
+        </thead>
+        <tbody>
+          ${snapshots.map((snapshot) => `
+            <tr>
+              <td><strong>${escapeHtml(snapshot.name)}</strong></td>
+              <td>${formatDate(snapshot.createdAt)}</td>
+              <td>${snapshot.recordCount} 条</td>
+              <td>${snapshot.stationCount} 个</td>
+              <td>
+                <button data-restore-snapshot="${snapshot.id}">恢复</button>
+                <button data-del-snapshot="${snapshot.id}">删除</button>
+              </td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+  
+  rowsEl.querySelectorAll('[data-restore-snapshot]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const snapshotId = button.dataset.restoreSnapshot;
+      const snapshots = loadSnapshots();
+      const snapshot = snapshots.find((s) => s.id === snapshotId);
+      if (!snapshot) return;
+      
+      if (confirm(`确定要恢复快照"${snapshot.name}"吗？\n\n恢复后将替换当前所有潮汐记录和站点数据，当前未保存的修改将会丢失。`)) {
+        restoreSnapshot(snapshotId);
+        render();
+      }
+    });
+  });
+  
+  rowsEl.querySelectorAll('[data-del-snapshot]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const snapshotId = button.dataset.delSnapshot;
+      const snapshots = loadSnapshots();
+      const snapshot = snapshots.find((s) => s.id === snapshotId);
+      if (!snapshot) return;
+      
+      if (confirm(`确定要删除快照"${snapshot.name}"吗？此操作不可撤销。`)) {
+        deleteSnapshot(snapshotId);
+        render();
+      }
+    });
+  });
+}
+
 function render() {
   document.querySelectorAll('.viewBtn').forEach((btn) => {
     btn.classList.toggle('active', btn.dataset.view === currentView);
@@ -551,6 +703,7 @@ function render() {
   drawLine('#todayChart', scoped.sort(byDateAsc).map((record) => ({ label: record.time, value: record.level })), 'cm');
   drawLine('#weekChart', dailyAverage(scoped, 'level'), 'cm');
   drawBars('#placeChart', groupAverage(filtered, 'place', 'level'), 'cm');
+  renderSnapshots();
 }
 
 function edit(id) {

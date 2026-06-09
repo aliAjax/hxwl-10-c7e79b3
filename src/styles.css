@@ -810,6 +810,42 @@ td button {
   font-size: 13px;
 }
 
+.snapshotLayout {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 18px;
+  margin-top: 8px;
+}
+
+.snapshotForm {
+  align-self: start;
+  display: grid;
+  gap: 12px;
+}
+
+.snapshotForm h3 {
+  margin: 0 0 4px 0;
+  font-size: 16px;
+  color: #0d9488;
+}
+
+.snapshotHint {
+  margin: 0;
+  font-size: 12px;
+  color: #8899a6;
+  line-height: 1.5;
+}
+
+.snapshotList table {
+  min-width: 640px;
+}
+
+.snapshotList .empty {
+  text-align: center;
+  padding: 32px 16px;
+  font-size: 14px;
+}
+
 @media (max-width: 900px) {
   .viewToggle {
     flex-wrap: wrap;
@@ -830,5 +866,13 @@ td button {
   .calendarDayBadge {
     font-size: 9px;
     padding: 1px 4px;
+  }
+
+  .snapshotLayout {
+    display: block;
+  }
+
+  .snapshotForm {
+    margin-top: 14px;
   }
 }
