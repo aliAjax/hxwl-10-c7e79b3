@@ -225,6 +225,10 @@ function removeStation(id) {
     cancelStationEditBtn.style.display = 'none';
     stationFormTitle.textContent = '新增站点';
   }
+  if (editingId) {
+    editingId = null;
+    form.reset();
+  }
   render();
 }
 
@@ -237,15 +241,27 @@ function render() {
   const placeSelect = form.elements.place;
   const currentPlaceValue = placeSelect.value;
   const stationNames = stations.map((s) => s.name).sort();
-  const allPlaceNames = [...new Set([...stationNames, ...places])].sort();
-  placeSelect.innerHTML = `<option value="">请选择站点</option>${allPlaceNames.map((name) => {
+  
+  const editingRecord = editingId ? records.find((r) => r.id === editingId) : null;
+  const isEditingHistoricalPlace = editingRecord && !stationNames.includes(editingRecord.place);
+  
+  let availablePlaces;
+  if (isEditingHistoricalPlace) {
+    availablePlaces = [...new Set([...stationNames, editingRecord.place])].sort();
+  } else {
+    availablePlaces = stationNames;
+  }
+  
+  placeSelect.innerHTML = `<option value="">请选择站点</option>${availablePlaces.map((name) => {
     const isStation = stationNames.includes(name);
     return `<option value="${name}">${name}${isStation ? '' : ' (历史)'}</option>`;
   }).join('')}`;
-  if (currentPlaceValue && allPlaceNames.includes(currentPlaceValue)) {
+  if (currentPlaceValue && availablePlaces.includes(currentPlaceValue)) {
     placeSelect.value = currentPlaceValue;
   } else if (!editingId && stationNames.length > 0) {
     placeSelect.value = stationNames[0];
+  } else if (isEditingHistoricalPlace) {
+    placeSelect.value = editingRecord.place;
   }
 
   document.querySelector('#stationCount').textContent = `${stations.length} 个站点`;
@@ -292,6 +308,7 @@ function render() {
 function edit(id) {
   const record = records.find((item) => item.id === id);
   editingId = id;
+  render();
   Object.entries(record).forEach(([key, value]) => {
     if (form.elements[key]) form.elements[key].value = value;
   });
