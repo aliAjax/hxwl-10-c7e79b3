@@ -23,15 +23,23 @@ let stations = loadStations();
 let editingId = null;
 let editingStationId = null;
 let pendingImportData = null;
+let currentView = 'list';
+let calendarYear = new Date().getFullYear();
+let calendarMonth = new Date().getMonth();
+let selectedCalendarDate = null;
 
 const app = document.querySelector('#app');
 app.innerHTML = `
   <main class="shell">
     <section class="hero">
-      <div>
+      <div class="heroContent">
         <p class="eyebrow">hxwl-10 · port 5110</p>
         <h1>海边潮汐观察</h1>
         <p class="intro">手动记录潮位、风向、风速和天气，用本地数据跑通第一期潮汐可视化。</p>
+        <div class="viewToggle">
+          <button class="viewBtn active" data-view="list">📋 列表视图</button>
+          <button class="viewBtn" data-view="calendar">📅 观测日历</button>
+        </div>
       </div>
       <div class="actions">
         <button class="ghost" id="importSample">载入示例</button>
@@ -84,7 +92,29 @@ app.innerHTML = `
       </div>
     </section>
 
-    <section class="panel">
+    <section class="panel" id="calendarViewSection" style="display:none;">
+      <div class="calendarLayout">
+        <div class="calendarPanel">
+          <div class="panelHead">
+            <h2>观测日历</h2>
+            <div class="calendarNav">
+              <button class="calendarNavBtn" id="prevMonth">‹</button>
+              <span class="calendarTitle" id="calendarTitle"></span>
+              <button class="calendarNavBtn" id="nextMonth">›</button>
+            </div>
+          </div>
+          <div class="calendar" id="calendar"></div>
+        </div>
+        <div class="calendarDetail" id="calendarDetail">
+          <div class="panel">
+            <h2 id="calendarDetailTitle">选择日期查看记录</h2>
+            <div id="calendarDetailRows"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" id="listViewSection">
       <div class="panelHead">
         <h2>观测列表</h2>
         <input id="search" placeholder="搜索地点、天气或备注" />
@@ -166,6 +196,31 @@ document.querySelector('#cancelCsvImport').addEventListener('click', closeCsvMod
 document.querySelector('#confirmCsvImport').addEventListener('click', confirmCsvImport);
 document.querySelector('#csvModal').addEventListener('click', (e) => {
   if (e.target.id === 'csvModal') closeCsvModal();
+});
+
+document.querySelectorAll('.viewBtn').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    currentView = btn.dataset.view;
+    render();
+  });
+});
+
+document.querySelector('#prevMonth').addEventListener('click', () => {
+  calendarMonth--;
+  if (calendarMonth < 0) {
+    calendarMonth = 11;
+    calendarYear--;
+  }
+  render();
+});
+
+document.querySelector('#nextMonth').addEventListener('click', () => {
+  calendarMonth++;
+  if (calendarMonth > 11) {
+    calendarMonth = 0;
+    calendarYear++;
+  }
+  render();
 });
 
 stationForm.addEventListener('submit', (event) => {
@@ -253,7 +308,179 @@ function removeStation(id) {
   render();
 }
 
+function aggregateByDate(records) {
+  const map = new Map();
+  records.forEach((record) => {
+    const list = map.get(record.date) || [];
+    list.push(record);
+    map.set(record.date, list);
+  });
+  return map;
+}
+
+function getDaysInMonth(year, month) {
+  return new Date(year, month + 1, 0).getDate();
+}
+
+function getFirstDayOfMonth(year, month) {
+  return new Date(year, month, 1).getDay();
+}
+
+function getPrimaryWeather(dayRecords) {
+  const weatherCount = {};
+  dayRecords.forEach((r) => {
+    weatherCount[r.weather] = (weatherCount[r.weather] || 0) + 1;
+  });
+  let primary = '';
+  let maxCount = 0;
+  Object.entries(weatherCount).forEach(([weather, count]) => {
+    if (count > maxCount) {
+      maxCount = count;
+      primary = weather;
+    }
+  });
+  return primary;
+}
+
+function getWeatherIcon(weather) {
+  const map = {
+    '晴': '☀️',
+    '多云': '⛅',
+    '阴': '☁️',
+    '小雨': '🌧️',
+    '中雨': '🌧️',
+    '大雨': '🌧️',
+    '雷阵雨': '⛈️',
+    '雪': '❄️',
+    '雾': '🌫️'
+  };
+  return map[weather] || '🌤️';
+}
+
+function selectCalendarDate(dateStr) {
+  selectedCalendarDate = dateStr;
+  render();
+}
+
+function renderCalendar() {
+  const aggregated = aggregateByDate(records);
+  const daysInMonth = getDaysInMonth(calendarYear, calendarMonth);
+  const firstDay = getFirstDayOfMonth(calendarYear, calendarMonth);
+  const today = new Date().toISOString().slice(0, 10);
+  
+  document.querySelector('#calendarTitle').textContent = `${calendarYear}年${calendarMonth + 1}月`;
+  
+  const weekdays = ['日', '一', '二', '三', '四', '五', '六'];
+  let html = `<div class="calendarWeekdays">${weekdays.map((d) => `<div class="calendarWeekday">${d}</div>`).join('')}</div><div class="calendarDays">`;
+  
+  for (let i = 0; i < firstDay; i++) {
+    html += `<div class="calendarDay empty"></div>`;
+  }
+  
+  for (let day = 1; day <= daysInMonth; day++) {
+    const dateStr = `${calendarYear}-${String(calendarMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    const dayRecords = aggregated.get(dateStr) || [];
+    const isToday = dateStr === today;
+    const isSelected = dateStr === selectedCalendarDate;
+    const hasRecords = dayRecords.length > 0;
+    
+    let dayContent = `<div class="calendarDayNumber${isToday ? ' today' : ''}${isSelected ? ' selected' : ''}">${day}</div>`;
+    
+    if (hasRecords) {
+      const maxLevel = Math.max(...dayRecords.map((r) => r.level));
+      const primaryWeather = getPrimaryWeather(dayRecords);
+      const weatherIcon = getWeatherIcon(primaryWeather);
+      dayContent += `
+        <div class="calendarDayBadge">${dayRecords.length}条</div>
+        <div class="calendarDayInfo">
+          <span class="calendarDayLevel">${maxLevel}cm</span>
+          <span class="calendarDayWeather">${weatherIcon}</span>
+        </div>
+      `;
+    }
+    
+    html += `<div class="calendarDay${hasRecords ? ' hasRecords' : ''}${isSelected ? ' selected' : ''}" data-date="${dateStr}">${dayContent}</div>`;
+  }
+  
+  const totalCells = firstDay + daysInMonth;
+  const remainingCells = Math.ceil(totalCells / 7) * 7 - totalCells;
+  for (let i = 0; i < remainingCells; i++) {
+    html += `<div class="calendarDay empty"></div>`;
+  }
+  
+  html += `</div>`;
+  document.querySelector('#calendar').innerHTML = html;
+  
+  document.querySelectorAll('.calendarDay[data-date]').forEach((cell) => {
+    cell.addEventListener('click', () => selectCalendarDate(cell.dataset.date));
+  });
+}
+
+function renderCalendarDetail() {
+  const titleEl = document.querySelector('#calendarDetailTitle');
+  const rowsEl = document.querySelector('#calendarDetailRows');
+  
+  if (!selectedCalendarDate) {
+    titleEl.textContent = '选择日期查看记录';
+    rowsEl.innerHTML = '<p class="empty">点击日历中的日期查看当天的潮汐观测记录</p>';
+    return;
+  }
+  
+  const dayRecords = records.filter((r) => r.date === selectedCalendarDate).sort(byDateAsc);
+  
+  titleEl.textContent = `${selectedCalendarDate} 观测记录 (${dayRecords.length}条)`;
+  
+  if (dayRecords.length === 0) {
+    rowsEl.innerHTML = '<p class="empty">当天暂无观测记录</p>';
+    return;
+  }
+  
+  rowsEl.innerHTML = `
+    <div class="tableWrap">
+      <table>
+        <thead>
+          <tr><th>时间</th><th>地点</th><th>潮位</th><th>风</th><th>天气</th><th>备注</th><th></th></tr>
+        </thead>
+        <tbody>
+          ${dayRecords.map((record) => `
+            <tr>
+              <td>${record.time}</td>
+              <td>${record.place}</td>
+              <td>${record.level}cm</td>
+              <td>${record.windDir} ${record.wind}km/h</td>
+              <td>${record.weather}</td>
+              <td>${record.note || '-'}</td>
+              <td>
+                <button data-edit="${record.id}">编辑</button>
+                <button data-del="${record.id}">删除</button>
+              </td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+  
+  rowsEl.querySelectorAll('[data-del]').forEach((button) => {
+    button.addEventListener('click', () => remove(button.dataset.del));
+  });
+  rowsEl.querySelectorAll('[data-edit]').forEach((button) => {
+    button.addEventListener('click', () => edit(button.dataset.edit));
+  });
+}
+
 function render() {
+  document.querySelectorAll('.viewBtn').forEach((btn) => {
+    btn.classList.toggle('active', btn.dataset.view === currentView);
+  });
+  document.querySelector('#listViewSection').style.display = currentView === 'list' ? '' : 'none';
+  document.querySelector('#calendarViewSection').style.display = currentView === 'calendar' ? '' : 'none';
+  
+  if (currentView === 'calendar') {
+    renderCalendar();
+    renderCalendarDetail();
+  }
+  
   const selectedPlace = placeFilter.value;
   const places = [...new Set(records.map((record) => record.place))].sort();
   placeFilter.innerHTML = `<option value="">全部地点</option>${places.map((place) => `<option>${place}</option>`).join('')}`;
