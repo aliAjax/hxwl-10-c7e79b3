@@ -1,7 +1,6 @@
 import './styles.css';
 
 const storageKey = 'hxwl-10-tide-records';
-const stationStorageKey = 'hxwl-10-tide-stations';
 const seed = [
   { id: crypto.randomUUID(), place: '东极青浜', date: '2026-06-03', time: '05:40', level: 128, windDir: '东北', wind: 13, weather: '多云', note: '浪面平稳' },
   { id: crypto.randomUUID(), place: '东极青浜', date: '2026-06-03', time: '11:50', level: 342, windDir: '东北', wind: 18, weather: '晴', note: '午前涨潮明显' },
@@ -10,16 +9,9 @@ const seed = [
   { id: crypto.randomUUID(), place: '嵊泗基湖', date: '2026-06-05', time: '13:05', level: 319, windDir: '西南', wind: 15, weather: '晴', note: '游客增加' },
   { id: crypto.randomUUID(), place: '象山石浦', date: '2026-06-06', time: '10:30', level: 288, windDir: '东', wind: 21, weather: '小雨', note: '港内风浪偏大' }
 ];
-const stationSeed = [
-  { id: crypto.randomUUID(), name: '东极青浜', sea: '东海', longitude: '122.6789', latitude: '30.1234', note: '位于东极岛群，视野开阔' },
-  { id: crypto.randomUUID(), name: '嵊泗基湖', sea: '东海', longitude: '122.4567', latitude: '30.6789', note: '基湖沙滩附近，适合观测' },
-  { id: crypto.randomUUID(), name: '象山石浦', sea: '东海', longitude: '121.9876', latitude: '29.3456', note: '石浦港内，受风浪影响较小' }
-];
 
 let records = load();
-let stations = loadStations();
 let editingId = null;
-let editingStationId = null;
 
 const app = document.querySelector('#app');
 app.innerHTML = `
@@ -31,7 +23,6 @@ app.innerHTML = `
         <p class="intro">手动记录潮位、风向、风速和天气，用本地数据跑通第一期潮汐可视化。</p>
       </div>
       <div class="actions">
-        <button class="ghost" id="manageStations">站点管理</button>
         <button class="ghost" id="importSample">载入示例</button>
         <label class="ghost file">导入CSV<input id="csvInput" type="file" accept=".csv,text/csv" /></label>
         <button class="ghost" id="exportCsv">导出CSV</button>
@@ -41,9 +32,7 @@ app.innerHTML = `
     <section class="layout">
       <form class="panel form" id="recordForm">
         <h2>记录潮汐</h2>
-        <select name="place" id="placeSelect" required>
-          <option value="">请选择地点</option>
-        </select>
+        <input name="place" placeholder="地点" required />
         <div class="pair">
           <input name="date" type="date" required />
           <input name="time" type="time" required />
@@ -82,26 +71,6 @@ app.innerHTML = `
       </div>
     </section>
 
-    <section class="panel" id="stationPanel" style="display:none;">
-      <div class="panelHead">
-        <h2>观测站点管理</h2>
-        <button class="ghost" id="closeStationPanel">关闭</button>
-      </div>
-      <form class="form" id="stationForm" style="margin-bottom:20px;">
-        <div class="pair">
-          <input name="name" placeholder="地点名称" required />
-          <input name="sea" placeholder="所属海域" required />
-        </div>
-        <div class="pair">
-          <input name="longitude" type="number" step="0.0001" placeholder="经度" required />
-          <input name="latitude" type="number" step="0.0001" placeholder="纬度" required />
-        </div>
-        <textarea name="note" placeholder="备注"></textarea>
-        <button class="primary" type="submit">保存站点</button>
-      </form>
-      <div class="tableWrap"><table><thead><tr><th>地点名称</th><th>所属海域</th><th>经度</th><th>纬度</th><th>备注</th><th>关联记录</th><th></th></tr></thead><tbody id="stationRows"></tbody></table></div>
-    </section>
-
     <section class="panel">
       <div class="panelHead">
         <h2>观测列表</h2>
@@ -115,9 +84,6 @@ app.innerHTML = `
 const form = document.querySelector('#recordForm');
 const search = document.querySelector('#search');
 const placeFilter = document.querySelector('#placeFilter');
-const placeSelect = document.querySelector('#placeSelect');
-const stationForm = document.querySelector('#stationForm');
-const stationPanel = document.querySelector('#stationPanel');
 
 form.addEventListener('submit', (event) => {
   event.preventDefault();
@@ -126,20 +92,12 @@ form.addEventListener('submit', (event) => {
   records = editingId ? records.map((record) => (record.id === editingId ? item : record)) : [item, ...records];
   editingId = null;
   form.reset();
-  placeSelect.value = '';
   persist();
   render();
 });
 
 search.addEventListener('input', render);
 placeFilter.addEventListener('change', render);
-document.querySelector('#manageStations').addEventListener('click', () => {
-  stationPanel.style.display = 'block';
-  renderStations();
-});
-document.querySelector('#closeStationPanel').addEventListener('click', () => {
-  stationPanel.style.display = 'none';
-});
 document.querySelector('#importSample').addEventListener('click', () => {
   records = seed;
   persist();
@@ -148,93 +106,19 @@ document.querySelector('#importSample').addEventListener('click', () => {
 document.querySelector('#exportCsv').addEventListener('click', () => downloadCsv(records));
 document.querySelector('#csvInput').addEventListener('change', importCsv);
 
-stationForm.addEventListener('submit', (event) => {
-  event.preventDefault();
-  const data = Object.fromEntries(new FormData(stationForm).entries());
-  const item = { ...data, id: editingStationId || crypto.randomUUID() };
-  if (editingStationId) {
-    const oldStation = stations.find((s) => s.id === editingStationId);
-    if (oldStation && oldStation.name !== item.name) {
-      records = records.map((record) => (record.place === oldStation.name ? { ...record, place: item.name } : record));
-      persist();
-    }
-    stations = stations.map((station) => (station.id === editingStationId ? item : station));
-  } else {
-    stations = [item, ...stations];
-  }
-  editingStationId = null;
-  stationForm.reset();
-  persistStations();
-  renderStations();
-  render();
-});
-
 function load() {
   return JSON.parse(localStorage.getItem(storageKey) || 'null') || seed;
-}
-
-function loadStations() {
-  return JSON.parse(localStorage.getItem(stationStorageKey) || 'null') || stationSeed;
 }
 
 function persist() {
   localStorage.setItem(storageKey, JSON.stringify(records));
 }
 
-function persistStations() {
-  localStorage.setItem(stationStorageKey, JSON.stringify(stations));
-}
-
-function getStationRecordCount(stationName) {
-  return records.filter((record) => record.place === stationName).length;
-}
-
-function renderStations() {
-  const stationRows = document.querySelector('#stationRows');
-  stationRows.innerHTML = stations
-    .map((station) => {
-      const count = getStationRecordCount(station.name);
-      return `<tr><td>${station.name}</td><td>${station.sea}</td><td>${station.longitude}</td><td>${station.latitude}</td><td>${station.note || '-'}</td><td>${count}</td><td><button data-edit-station="${station.id}">编辑</button><button data-del-station="${station.id}" ${count > 0 ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : ''}>删除</button></td></tr>`;
-    })
-    .join('');
-  document.querySelectorAll('[data-edit-station]').forEach((button) => button.addEventListener('click', () => editStation(button.dataset.editStation)));
-  document.querySelectorAll('[data-del-station]').forEach((button) => {
-    if (!button.disabled) {
-      button.addEventListener('click', () => removeStation(button.dataset.delStation));
-    }
-  });
-}
-
-function editStation(id) {
-  const station = stations.find((item) => item.id === id);
-  editingStationId = id;
-  Object.entries(station).forEach(([key, value]) => {
-    if (stationForm.elements[key]) stationForm.elements[key].value = value;
-  });
-}
-
-function removeStation(id) {
-  const station = stations.find((item) => item.id === id);
-  const count = getStationRecordCount(station.name);
-  if (count > 0) {
-    alert('该站点有关联的潮汐记录，无法删除。请先删除相关记录后再操作。');
-    return;
-  }
-  stations = stations.filter((item) => item.id !== id);
-  persistStations();
-  renderStations();
-  render();
-}
-
 function render() {
   const selectedPlace = placeFilter.value;
-  const currentPlaceSelectValue = placeSelect.value;
-  const stationNames = stations.map((station) => station.name).sort();
   const places = [...new Set(records.map((record) => record.place))].sort();
   placeFilter.innerHTML = `<option value="">全部地点</option>${places.map((place) => `<option>${place}</option>`).join('')}`;
   placeFilter.value = selectedPlace && places.includes(selectedPlace) ? selectedPlace : '';
-  placeSelect.innerHTML = `<option value="">请选择地点</option>${stationNames.map((name) => `<option>${name}</option>`).join('')}`;
-  placeSelect.value = currentPlaceSelectValue && stationNames.includes(currentPlaceSelectValue) ? currentPlaceSelectValue : '';
   const filtered = records.filter((record) => [record.place, record.weather, record.note].join(' ').includes(search.value.trim()));
   const scoped = placeFilter.value ? filtered.filter((record) => record.place === placeFilter.value) : filtered;
   document.querySelector('#stats').innerHTML = cards([
@@ -259,14 +143,6 @@ function edit(id) {
   Object.entries(record).forEach(([key, value]) => {
     if (form.elements[key]) form.elements[key].value = value;
   });
-  if (record.place) {
-    const stationNames = stations.map((station) => station.name);
-    if (stationNames.includes(record.place)) {
-      placeSelect.value = record.place;
-    } else {
-      placeSelect.innerHTML = `<option value="">请选择地点</option><option value="${record.place}" selected>${record.place}</option>${stationNames.filter((name) => name !== record.place).map((name) => `<option>${name}</option>`).join('')}`;
-    }
-  }
 }
 
 function remove(id) {
