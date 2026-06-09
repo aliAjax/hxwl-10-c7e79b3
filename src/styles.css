@@ -233,7 +233,68 @@ td button {
   color: #6f8790;
 }
 
+.stationLayout {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 18px;
+  margin-top: 8px;
+}
+
+.stationForm {
+  align-self: start;
+  display: grid;
+  gap: 12px;
+}
+
+.stationForm h3 {
+  margin: 0 0 4px 0;
+  font-size: 16px;
+  color: #0d9488;
+}
+
+.formActions {
+  display: flex;
+  gap: 10px;
+}
+
+.formActions .ghost {
+  flex: 1;
+  background: #e4f5f1;
+}
+
+.formActions .primary {
+  flex: 1;
+}
+
+.countBadge {
+  background: #d9f3ed;
+  color: #0d9488;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.recordCount {
+  background: #eef7f5;
+  color: #557084;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.stationList table {
+  min-width: 640px;
+}
+
 @media (max-width: 900px) {
+  .stationLayout {
+    display: block;
+  }
+
+  .stationForm {
+    margin-top: 14px;
+  }
   .hero,
   .layout {
     display: block;
