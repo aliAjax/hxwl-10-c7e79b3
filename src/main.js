@@ -2564,6 +2564,7 @@ function renderCompareView() {
   document.querySelector('#listViewSection').style.display = 'none';
   document.querySelector('#stationSection').style.display = 'none';
   document.querySelector('#snapshotSection').style.display = 'none';
+  document.querySelector('#oplogSection').style.display = '';
   document.querySelector('#compareViewSection').style.display = '';
   
   initCompareDefaults();
@@ -2582,6 +2583,7 @@ function renderCompareView() {
     document.querySelector('#weatherDonutChart').innerHTML = emptyMsg;
     document.querySelector('#boxplotCompareChart').innerHTML = emptyMsg;
     renderCompareSummary({}, selectedPlaces);
+    renderOpLog();
     return;
   }
   
@@ -2610,6 +2612,7 @@ function renderCompareView() {
       document.querySelector('#' + id).innerHTML = noOverlapMsg;
     });
     renderCompareSummary({}, selectedPlaces);
+    renderOpLog();
     return;
   }
   
@@ -2623,6 +2626,7 @@ function renderCompareView() {
   drawRadarChart('#radarCompareChart', stats, selectedPlaces);
   drawWeatherDonutChart('#weatherDonutChart', stats, selectedPlaces);
   drawBoxplotChart('#boxplotCompareChart', stats, selectedPlaces);
+  renderOpLog();
 }
 
 render();
