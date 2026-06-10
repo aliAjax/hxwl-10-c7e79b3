@@ -1134,7 +1134,7 @@ function renderCalendar() {
         <div class="calendarDayBadge">${dayRecords.length}条</div>
         <div class="calendarDayInfo">
           <span class="calendarDayLevel">${maxLevel}cm</span>
-          <span class="calendarDayWeather">${weatherIcon}</span>
+          <span class="calendarDayWeather">${escapeHtml(weatherIcon)}</span>
         </div>
       `;
     }
@@ -1184,12 +1184,12 @@ function renderCalendarDetail() {
         <tbody>
           ${dayRecords.map((record) => `
             <tr>
-              <td>${record.time}</td>
-              <td>${record.place}</td>
-              <td>${record.level}cm</td>
-              <td>${record.windDir} ${record.wind}km/h</td>
-              <td>${record.weather}</td>
-              <td>${record.note || '-'}</td>
+              <td>${escapeHtml(record.time)}</td>
+              <td>${escapeHtml(record.place)}</td>
+              <td>${escapeHtml(record.level)}cm</td>
+              <td>${escapeHtml(record.windDir)} ${escapeHtml(record.wind)}km/h</td>
+              <td>${escapeHtml(record.weather)}</td>
+              <td>${escapeHtml(record.note || '-')}</td>
               <td>
                 <button data-edit="${record.id}">编辑</button>
                 <button data-del="${record.id}">删除</button>
@@ -1398,10 +1398,10 @@ function render() {
     .map((station) => {
       const recordCount = getRecordCountForStation(station.name);
       return `<tr>
-        <td><strong>${station.name}</strong></td>
-        <td>${station.seaArea}</td>
+        <td><strong>${escapeHtml(station.name)}</strong></td>
+        <td>${escapeHtml(station.seaArea)}</td>
         <td>${station.longitude.toFixed(4)}, ${station.latitude.toFixed(4)}</td>
-        <td>${station.note || '-'}</td>
+        <td>${escapeHtml(station.note || '-')}</td>
         <td><span class="recordCount">${recordCount} 条</span></td>
         <td>
           <button data-edit-station="${station.id}">编辑</button>
@@ -1422,7 +1422,7 @@ function render() {
     .map((item) => {
       const recordCount = getRecordCountForWeather(item.name);
       return `<tr>
-        <td style="font-size: 24px; text-align: center;">${item.icon}</td>
+        <td style="font-size: 24px; text-align: center;">${escapeHtml(item.icon)}</td>
         <td><strong>${escapeHtml(item.name)}</strong></td>
         <td><span class="recordCount">${recordCount} 条</span></td>
         <td>
@@ -1441,7 +1441,7 @@ function render() {
 
   const weatherDatalist = document.querySelector('#weatherDictList');
   if (weatherDatalist) {
-    weatherDatalist.innerHTML = weatherDict.map((item) => `<option value="${escapeHtml(item.name)}">${item.icon}</option>`).join('');
+    weatherDatalist.innerHTML = weatherDict.map((item) => `<option value="${escapeHtml(item.name)}">${escapeHtml(item.icon)}</option>`).join('');
   }
 
   let filtered = records.filter((record) => [record.place, record.weather, record.note].join(' ').includes(search.value.trim()));
@@ -1463,7 +1463,7 @@ function render() {
         `<span class="${getAnomalyBadgeClass(a.type)}" title="${escapeHtml(a.reason)}">${getAnomalyTypeLabel(a.type)}</span>`
       ).join('');
       const rowClass = recordAnomalies.length > 0 ? 'anomalyRow' : '';
-      return `<tr class="${rowClass}"><td>${record.date} ${record.time}</td><td>${record.place}</td><td>${record.level}cm</td><td>${record.windDir} ${record.wind}km/h</td><td>${record.weather}</td><td>${anomalyBadges || '<span class="noAnomaly">-</span>'}</td><td><button data-edit="${record.id}">编辑</button><button data-del="${record.id}">删除</button></td></tr>`;
+      return `<tr class="${rowClass}"><td>${escapeHtml(record.date)} ${escapeHtml(record.time)}</td><td>${escapeHtml(record.place)}</td><td>${escapeHtml(record.level)}cm</td><td>${escapeHtml(record.windDir)} ${escapeHtml(record.wind)}km/h</td><td>${escapeHtml(record.weather)}</td><td>${anomalyBadges || '<span class="noAnomaly">-</span>'}</td><td><button data-edit="${record.id}">编辑</button><button data-del="${record.id}">删除</button></td></tr>`;
     })
     .join('');
   document.querySelectorAll('[data-del]').forEach((button) => button.addEventListener('click', () => remove(button.dataset.del)));
