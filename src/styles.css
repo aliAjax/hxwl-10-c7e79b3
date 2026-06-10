@@ -1527,3 +1527,233 @@ svg path:hover {
     min-width: 140px;
   }
 }
+
+.mapLayout {
+  display: grid;
+  grid-template-columns: 1fr 200px;
+  gap: 16px;
+  align-items: start;
+}
+
+.mapContainer {
+  width: 100%;
+  min-height: 340px;
+  background: linear-gradient(180deg, #e0f2fe 0%, #d9f3ed 100%);
+  border-radius: 8px;
+  border: 1px solid #bfd9d4;
+  position: relative;
+  overflow: hidden;
+}
+
+.mapContainer svg {
+  width: 100%;
+  height: 340px;
+  min-height: 340px;
+  display: block;
+}
+
+.mapLegend {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background: #fbfefe;
+  border: 1px solid #e0efec;
+  border-radius: 8px;
+}
+
+.mapLegend h4 {
+  margin: 0 0 4px 0;
+  font-size: 13px;
+  color: #0d9488;
+  font-weight: 600;
+}
+
+.mapLegendItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #557084;
+}
+
+.mapLegendDot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.mapStation {
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.mapStation:hover circle {
+  filter: drop-shadow(0 0 6px rgba(13, 148, 136, 0.6));
+}
+
+.mapStation.selected circle {
+  filter: drop-shadow(0 0 8px rgba(239, 68, 68, 0.7));
+}
+
+.mapStationLabel {
+  font-size: 12px;
+  font-weight: 600;
+  fill: #0f3f4d;
+  pointer-events: none;
+  text-anchor: middle;
+  paint-order: stroke;
+  stroke: #ffffff;
+  stroke-width: 3px;
+  stroke-linejoin: round;
+}
+
+.mapStationSubLabel {
+  font-size: 10px;
+  fill: #557084;
+  pointer-events: none;
+  text-anchor: middle;
+  paint-order: stroke;
+  stroke: #ffffff;
+  stroke-width: 2px;
+  stroke-linejoin: round;
+}
+
+.mapStationCount {
+  font-size: 10px;
+  font-weight: 700;
+  fill: white;
+  pointer-events: none;
+  text-anchor: middle;
+  dominant-baseline: central;
+}
+
+.mapGridLine {
+  stroke: rgba(13, 148, 136, 0.12);
+  stroke-width: 1;
+  stroke-dasharray: 4 4;
+}
+
+.mapAxisLabel {
+  font-size: 10px;
+  fill: #8899a6;
+}
+
+.mapCompass {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid #bfd9d4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  color: #0d9488;
+  font-weight: 700;
+  box-shadow: 0 2px 8px rgba(22, 76, 92, 0.1);
+}
+
+.mapScale {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  font-size: 11px;
+  color: #557084;
+  background: rgba(255, 255, 255, 0.9);
+  padding: 4px 10px;
+  border-radius: 4px;
+  border: 1px solid #e0efec;
+}
+
+.mapSeaLabel {
+  font-size: 22px;
+  font-weight: 700;
+  fill: rgba(13, 148, 136, 0.15);
+  text-anchor: middle;
+  dominant-baseline: middle;
+  pointer-events: none;
+  letter-spacing: 8px;
+}
+
+.mapSelectedInfo {
+  margin-top: 12px;
+  padding: 12px 16px;
+  background: #d9f3ed;
+  border-radius: 6px;
+  display: none;
+}
+
+.mapSelectedInfo.active {
+  display: block;
+}
+
+.mapSelectedInfo strong {
+  color: #0d9488;
+  font-size: 15px;
+}
+
+.mapSelectedInfo span {
+  color: #557084;
+  font-size: 13px;
+  margin-left: 8px;
+}
+
+.mapFilters {
+  display: flex;
+  gap: 8px;
+}
+
+.mapFilters .ghost {
+  padding: 8px 12px;
+  font-size: 13px;
+}
+
+.mapEmpty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  min-height: 200px;
+  color: #8899a6;
+  font-size: 14px;
+  text-align: center;
+  padding: 20px;
+}
+
+.mapEmpty svg {
+  width: 48px;
+  height: 48px;
+  min-height: 48px;
+  margin-bottom: 12px;
+  opacity: 0.5;
+}
+
+@media (max-width: 900px) {
+  .mapLayout {
+    grid-template-columns: 1fr;
+  }
+  
+  .mapLegend {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+  
+  .mapLegend h4 {
+    width: 100%;
+  }
+  
+  .mapContainer {
+    min-height: 280px;
+  }
+  
+  .mapContainer svg {
+    height: 280px;
+    min-height: 280px;
+  }
+}

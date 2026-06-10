@@ -37,6 +37,7 @@ let anomalyFilterEnabled = false;
 let compareSelectedPlaces = [];
 let compareStartDate = '';
 let compareEndDate = '';
+let mapSelectedStationId = null;
 
 const anomalyConfig = {
   levelJumpThreshold: 100,
@@ -142,6 +143,20 @@ app.innerHTML = `
         </div>
       </div>
       <div class="tableWrap"><table><thead><tr><th>时间</th><th>地点</th><th>潮位</th><th>风</th><th>天气</th><th>异常</th><th></th></tr></thead><tbody id="rows"></tbody></table></div>
+    </section>
+
+    <section class="panel" id="mapSection">
+      <div class="panelHead">
+        <h2>站点地图概览</h2>
+        <div class="mapFilters">
+          <button class="ghost" id="clearMapFilter">显示全部站点</button>
+        </div>
+      </div>
+      <div class="mapLayout">
+        <div id="mapContainer" class="mapContainer"></div>
+        <div class="mapLegend" id="mapLegend"></div>
+      </div>
+      <div id="mapSelectedInfo" class="mapSelectedInfo"></div>
     </section>
 
     <section class="panel" id="stationSection">
@@ -337,7 +352,18 @@ form.addEventListener('submit', (event) => {
 });
 
 search.addEventListener('input', render);
-placeFilter.addEventListener('change', render);
+placeFilter.addEventListener('change', () => {
+  const selectedValue = placeFilter.value;
+  if (selectedValue) {
+    const station = stations.find(s => s.name === selectedValue);
+    if (station) {
+      mapSelectedStationId = station.id;
+    }
+  } else {
+    mapSelectedStationId = null;
+  }
+  render();
+});
 document.querySelector('#anomalyFilterBtn').addEventListener('click', () => {
   anomalyFilterEnabled = !anomalyFilterEnabled;
   render();
@@ -438,6 +464,13 @@ document.querySelector('#resetCompareBtn').addEventListener('click', () => {
   compareStartDate = '';
   compareEndDate = '';
   initCompareDefaults();
+  render();
+});
+
+document.querySelector('#clearMapFilter').addEventListener('click', () => {
+  mapSelectedStationId = null;
+  const placeFilter = document.querySelector('#placeFilter');
+  if (placeFilter) placeFilter.value = '';
   render();
 });
 
@@ -622,6 +655,225 @@ function getRecordCountForStation(stationName) {
   return records.filter((record) => record.place === stationName).length;
 }
 
+const mapSeaAreaColors = {
+  '东海': '#0d9488',
+  '黄海': '#f59e0b',
+  '渤海': '#8b5cf6',
+  '南海': '#ef4444',
+  '太平洋': '#14b8a6',
+  'default': '#6366f1'
+};
+
+function getSeaAreaColor(seaArea) {
+  return mapSeaAreaColors[seaArea] || mapSeaAreaColors['default'];
+}
+
+function projectCoordToMap(longitude, latitude, bounds, width, height, padding = 40) {
+  const { minLng, maxLng, minLat, maxLat } = bounds;
+  const lngRange = maxLng - minLng || 1;
+  const latRange = maxLat - minLat || 1;
+  const usableWidth = width - padding * 2;
+  const usableHeight = height - padding * 2;
+  const x = padding + ((longitude - minLng) / lngRange) * usableWidth;
+  const y = height - padding - ((latitude - minLat) / latRange) * usableHeight;
+  return { x, y };
+}
+
+function getMapBounds(stationList) {
+  if (stationList.length === 0) {
+    return { minLng: 120, maxLng: 125, minLat: 28, maxLat: 32 };
+  }
+  const lngs = stationList.map(s => s.longitude);
+  const lats = stationList.map(s => s.latitude);
+  const minLng = Math.min(...lngs);
+  const maxLng = Math.max(...lngs);
+  const minLat = Math.min(...lats);
+  const maxLat = Math.max(...lats);
+  const lngPad = (maxLng - minLng) * 0.2 || 0.5;
+  const latPad = (maxLat - minLat) * 0.2 || 0.5;
+  return {
+    minLng: minLng - lngPad,
+    maxLng: maxLng + lngPad,
+    minLat: minLat - latPad,
+    maxLat: maxLat + latPad
+  };
+}
+
+function getStationRadius(recordCount) {
+  if (recordCount === 0) return 14;
+  if (recordCount <= 3) return 16;
+  if (recordCount <= 10) return 20;
+  if (recordCount <= 30) return 24;
+  return 28;
+}
+
+function selectMapStation(stationId) {
+  if (mapSelectedStationId === stationId) {
+    mapSelectedStationId = null;
+    const placeFilter = document.querySelector('#placeFilter');
+    if (placeFilter) placeFilter.value = '';
+  } else {
+    mapSelectedStationId = stationId;
+    const station = stations.find(s => s.id === stationId);
+    if (station) {
+      const placeFilter = document.querySelector('#placeFilter');
+      if (placeFilter) {
+        placeFilter.value = station.name;
+      }
+    }
+  }
+  render();
+}
+
+function renderStationMap() {
+  const mapContainer = document.querySelector('#mapContainer');
+  const legendContainer = document.querySelector('#mapLegend');
+  const selectedInfo = document.querySelector('#mapSelectedInfo');
+
+  if (!mapContainer) return;
+
+  if (stations.length === 0) {
+    mapContainer.innerHTML = `
+      <div class="mapEmpty">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+          <circle cx="12" cy="10" r="3"></circle>
+        </svg>
+        <div>暂无站点数据，请先添加观测站点</div>
+      </div>
+    `;
+    legendContainer.innerHTML = '';
+    selectedInfo.classList.remove('active');
+    return;
+  }
+
+  const width = 800;
+  const height = 340;
+  const bounds = getMapBounds(stations);
+  const padding = 50;
+
+  const seaAreas = [...new Set(stations.map(s => s.seaArea).filter(Boolean))];
+
+  let gridLines = '';
+  const gridSteps = 5;
+  for (let i = 0; i <= gridSteps; i++) {
+    const x = padding + (i / gridSteps) * (width - padding * 2);
+    const y = padding + (i / gridSteps) * (height - padding * 2);
+    gridLines += `<line class="mapGridLine" x1="${x}" y1="${padding}" x2="${x}" y2="${height - padding}" />`;
+    gridLines += `<line class="mapGridLine" x1="${padding}" y1="${y}" x2="${width - padding}" y2="${y}" />`;
+  }
+
+  let axisLabels = '';
+  for (let i = 0; i <= gridSteps; i++) {
+    const lng = bounds.minLng + (i / gridSteps) * (bounds.maxLng - bounds.minLng);
+    const lat = bounds.maxLat - (i / gridSteps) * (bounds.maxLat - bounds.minLat);
+    const x = padding + (i / gridSteps) * (width - padding * 2);
+    const y = padding + (i / gridSteps) * (height - padding * 2);
+    axisLabels += `<text class="mapAxisLabel" x="${x}" y="${height - padding + 16}" text-anchor="middle">${lng.toFixed(1)}°E</text>`;
+    axisLabels += `<text class="mapAxisLabel" x="${padding - 6}" y="${y + 4}" text-anchor="end">${lat.toFixed(1)}°N</text>`;
+  }
+
+  let seaLabels = '';
+  seaAreas.forEach((sea) => {
+    const seaStations = stations.filter(s => s.seaArea === sea);
+    if (seaStations.length > 0) {
+      const avgLng = seaStations.reduce((sum, s) => sum + s.longitude, 0) / seaStations.length;
+      const avgLat = seaStations.reduce((sum, s) => sum + s.latitude, 0) / seaStations.length;
+      const pos = projectCoordToMap(avgLng, avgLat, bounds, width, height, padding);
+      seaLabels += `<text class="mapSeaLabel" x="${pos.x}" y="${pos.y}">${sea}</text>`;
+    }
+  });
+
+  let stationNodes = '';
+  stations.forEach((station) => {
+    const recordCount = getRecordCountForStation(station.name);
+    const pos = projectCoordToMap(station.longitude, station.latitude, bounds, width, height, padding);
+    const isSelected = mapSelectedStationId === station.id;
+    const radius = getStationRadius(recordCount);
+    const color = getSeaAreaColor(station.seaArea);
+
+    stationNodes += `
+      <g class="mapStation ${isSelected ? 'selected' : ''}" data-station-id="${station.id}" data-station-name="${station.name}">
+        <circle cx="${pos.x}" cy="${pos.y}" r="${radius}" fill="${color}" fill-opacity="${isSelected ? 1 : 0.85}" stroke="${isSelected ? '#ef4444' : 'white'}" stroke-width="${isSelected ? 3 : 2}" />
+        <text class="mapStationCount" x="${pos.x}" y="${pos.y}">${recordCount}</text>
+        <text class="mapStationLabel" x="${pos.x}" y="${pos.y - radius - 8}">${escapeHtml(station.name)}</text>
+        <text class="mapStationSubLabel" x="${pos.x}" y="${pos.y + radius + 16}">${escapeHtml(station.seaArea || '-')}</text>
+      </g>
+    `;
+  });
+
+  mapContainer.innerHTML = `
+    <div class="mapCompass">🧭</div>
+    <div class="mapScale">约 ${((bounds.maxLng - bounds.minLng) * 111).toFixed(0)} km</div>
+    <svg viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <pattern id="mapWavePattern" patternUnits="userSpaceOnUse" width="40" height="40">
+          <path d="M0 20 Q 10 15, 20 20 T 40 20" fill="none" stroke="rgba(13, 148, 136, 0.06)" stroke-width="2"/>
+        </pattern>
+      </defs>
+      <rect width="${width}" height="${height}" fill="url(#mapWavePattern)"/>
+      ${gridLines}
+      ${seaLabels}
+      ${axisLabels}
+      ${stationNodes}
+    </svg>
+  `;
+
+  mapContainer.querySelectorAll('.mapStation').forEach((node) => {
+    node.addEventListener('click', () => {
+      selectMapStation(node.dataset.stationId);
+    });
+  });
+
+  let legendHtml = '<h4>海域图例</h4>';
+  seaAreas.forEach((sea) => {
+    const count = stations.filter(s => s.seaArea === sea).length;
+    legendHtml += `
+      <div class="mapLegendItem">
+        <span class="mapLegendDot" style="background:${getSeaAreaColor(sea)}"></span>
+        <span>${escapeHtml(sea)} (${count}个站点)</span>
+      </div>
+    `;
+  });
+  legendHtml += '<h4 style="margin-top:8px">点位大小</h4>';
+  legendHtml += `
+    <div class="mapLegendItem">
+      <span class="mapLegendDot" style="background:#0d9488;width:12px;height:12px"></span>
+      <span>记录较少</span>
+    </div>
+    <div class="mapLegendItem">
+      <span class="mapLegendDot" style="background:#0d9488;width:18px;height:18px"></span>
+      <span>记录中等</span>
+    </div>
+    <div class="mapLegendItem">
+      <span class="mapLegendDot" style="background:#0d9488;width:24px;height:24px"></span>
+      <span>记录较多</span>
+    </div>
+  `;
+  legendContainer.innerHTML = legendHtml;
+
+  if (mapSelectedStationId) {
+    const station = stations.find(s => s.id === mapSelectedStationId);
+    if (station) {
+      const recordCount = getRecordCountForStation(station.name);
+      selectedInfo.classList.add('active');
+      selectedInfo.innerHTML = `
+        <strong>📍 ${escapeHtml(station.name)}</strong>
+        <span>${escapeHtml(station.seaArea || '未知海域')}</span>
+        <span>·</span>
+        <span>经度 ${station.longitude.toFixed(4)}°, 纬度 ${station.latitude.toFixed(4)}°</span>
+        <span>·</span>
+        <span>${recordCount} 条观测记录</span>
+        <span style="margin-left:12px;color:#0d9488;font-size:13px;">点击"显示全部站点"或再次点击该点位可取消筛选</span>
+      `;
+    } else {
+      selectedInfo.classList.remove('active');
+    }
+  } else {
+    selectedInfo.classList.remove('active');
+  }
+}
+
 function editStation(id) {
   const station = stations.find((s) => s.id === id);
   editingStationId = id;
@@ -656,6 +908,9 @@ function removeStation(id) {
   if (editingId) {
     editingId = null;
     form.reset();
+  }
+  if (mapSelectedStationId === id) {
+    mapSelectedStationId = null;
   }
   render();
 }
@@ -953,6 +1208,7 @@ function render() {
   document.querySelector('#listViewSection').style.display = currentView === 'list' ? '' : 'none';
   document.querySelector('#calendarViewSection').style.display = currentView === 'calendar' ? '' : 'none';
   document.querySelector('#compareViewSection').style.display = 'none';
+  document.querySelector('#mapSection').style.display = '';
   document.querySelector('#stationSection').style.display = '';
   document.querySelector('#snapshotSection').style.display = '';
   
@@ -1059,6 +1315,7 @@ function render() {
   drawBars('#placeChart', groupAverage(filtered, 'place', 'level'), 'cm');
   renderSnapshots();
   renderOpLog();
+  renderStationMap();
 }
 
 function edit(id) {
@@ -2562,6 +2819,7 @@ function renderCompareView() {
   document.querySelector('#formSection').style.display = 'none';
   document.querySelector('#calendarViewSection').style.display = 'none';
   document.querySelector('#listViewSection').style.display = 'none';
+  document.querySelector('#mapSection').style.display = 'none';
   document.querySelector('#stationSection').style.display = 'none';
   document.querySelector('#snapshotSection').style.display = 'none';
   document.querySelector('#oplogSection').style.display = '';
