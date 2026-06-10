@@ -1170,6 +1170,48 @@ td button {
   color: #dc2626;
 }
 
+.compareNoData {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 16px;
+  text-align: center;
+  min-height: 200px;
+}
+
+.compareNoData .empty {
+  margin-bottom: 16px;
+  font-size: 15px;
+  color: #526b79;
+}
+
+.compareDateRangeList {
+  background: #f6f8fa;
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  text-align: left;
+  max-width: 400px;
+  width: 100%;
+}
+
+.compareDateRangeItem {
+  padding: 4px 0;
+  font-size: 13px;
+  color: #3b4f5c;
+  border-bottom: 1px solid #e8ecf0;
+}
+
+.compareDateRangeItem:last-child {
+  border-bottom: none;
+}
+
+.compareNoData .compareHint {
+  font-size: 13px;
+  color: #8899a6;
+}
+
 .chartPanel {
   display: flex;
   flex-direction: column;

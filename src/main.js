@@ -66,7 +66,7 @@ app.innerHTML = `
       </div>
     </section>
 
-    <section class="layout">
+    <section class="layout" id="formSection">
       <form class="panel form" id="recordForm">
         <h2>记录潮汐</h2>
         <select name="place" required>
@@ -143,7 +143,7 @@ app.innerHTML = `
       <div class="tableWrap"><table><thead><tr><th>时间</th><th>地点</th><th>潮位</th><th>风</th><th>天气</th><th>异常</th><th></th></tr></thead><tbody id="rows"></tbody></table></div>
     </section>
 
-    <section class="panel">
+    <section class="panel" id="stationSection">
       <div class="panelHead">
         <h2>观测站点管理</h2>
         <span id="stationCount" class="countBadge"></span>
@@ -169,7 +169,7 @@ app.innerHTML = `
       </div>
     </section>
 
-    <section class="panel">
+    <section class="panel" id="snapshotSection">
       <div class="panelHead">
         <h2>数据快照</h2>
         <span id="snapshotCount" class="countBadge"></span>
@@ -761,9 +761,12 @@ function render() {
     return;
   }
   
+  document.querySelector('#formSection').style.display = '';
   document.querySelector('#listViewSection').style.display = currentView === 'list' ? '' : 'none';
   document.querySelector('#calendarViewSection').style.display = currentView === 'calendar' ? '' : 'none';
   document.querySelector('#compareViewSection').style.display = 'none';
+  document.querySelector('#stationSection').style.display = '';
+  document.querySelector('#snapshotSection').style.display = '';
   
   if (currentView === 'calendar') {
     renderCalendar();
@@ -1555,9 +1558,20 @@ function renderCompareSummary(stats, selectedPlaces) {
   
   container.innerHTML = `
     <div class="compareSummaryGrid">
-      ${selectedPlaces.map((place) => {
+      ${selectedPlaces.map((place, idx) => {
         const s = stats[place];
-        if (!s) return '';
+        if (!s) {
+          const dateRange = getPlaceDateRange(place);
+          return `
+            <div class="compareSummaryCard" style="border-left: 4px solid ${compareColors[idx % compareColors.length]}">
+              <div class="compareSummaryTitle">${escapeHtml(place)}</div>
+              <div class="compareSummaryStats">
+                <div><span>记录数</span><strong>${dateRange ? dateRange.count : 0}</strong></div>
+                <div><span>观测期</span><strong>${dateRange ? dateRange.min + ' ~ ' + dateRange.max : '无数据'}</strong></div>
+              </div>
+            </div>
+          `;
+        }
         const dataCompleteness = s.expectedDays > 0 ? Math.round((s.daysWithData / s.expectedDays) * 100) : 0;
         return `
           <div class="compareSummaryCard" style="border-left: 4px solid ${s.color}">
@@ -1578,7 +1592,11 @@ function renderCompareSummary(stats, selectedPlaces) {
       <div class="compareDateInfo">
         <strong>共同观测期：</strong>${effectiveStart || overlapping.start} 至 ${effectiveEnd || overlapping.end}
       </div>
-    ` : ''}
+    ` : `
+      <div class="compareDateInfo" style="color: #dc2626;">
+        <strong>无可重叠日期</strong> — 各地点观测期不交叉
+      </div>
+    `}
     ${issuesHtml}
   `;
 }
@@ -2345,8 +2363,11 @@ function drawWeatherDonutChart(selector, stats, places) {
 }
 
 function renderCompareView() {
-  document.querySelector('#listViewSection').style.display = 'none';
+  document.querySelector('#formSection').style.display = 'none';
   document.querySelector('#calendarViewSection').style.display = 'none';
+  document.querySelector('#listViewSection').style.display = 'none';
+  document.querySelector('#stationSection').style.display = 'none';
+  document.querySelector('#snapshotSection').style.display = 'none';
   document.querySelector('#compareViewSection').style.display = '';
   
   initCompareDefaults();
@@ -2381,7 +2402,17 @@ function renderCompareView() {
     }
   }
   
+  const chartIds = ['tideTrendChart', 'tideRangeChart', 'windStripChart', 'radarCompareChart', 'weatherDonutChart', 'boxplotCompareChart'];
+  
   if (!effectiveStart || !effectiveEnd || effectiveStart > effectiveEnd) {
+    const dateRanges = selectedPlaces.map((p) => {
+      const r = getPlaceDateRange(p);
+      return r ? `<div class="compareDateRangeItem"><strong>${escapeHtml(p)}</strong>：${r.min} ~ ${r.max}（${r.count}条记录）</div>` : `<div class="compareDateRangeItem"><strong>${escapeHtml(p)}</strong>：无数据</div>`;
+    }).join('');
+    const noOverlapMsg = `<div class="compareNoData"><p class="empty">所选地点在指定日期范围内无共同观测数据</p><div class="compareDateRangeList">${dateRanges}</div><p class="compareHint">请调整日期范围或更换地点</p></div>`;
+    chartIds.forEach((id) => {
+      document.querySelector('#' + id).innerHTML = noOverlapMsg;
+    });
     renderCompareSummary({}, selectedPlaces);
     return;
   }
