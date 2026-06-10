@@ -33,12 +33,17 @@ let calendarYear = new Date().getFullYear();
 let calendarMonth = new Date().getMonth();
 let selectedCalendarDate = null;
 let anomalyFilterEnabled = false;
+let compareSelectedPlaces = [];
+let compareStartDate = '';
+let compareEndDate = '';
 
 const anomalyConfig = {
   levelJumpThreshold: 100,
   levelJumpTimeWindowHours: 6,
   highWindThreshold: 20
 };
+
+const compareColors = ['#0d9488', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316', '#6366f1'];
 
 const app = document.querySelector('#app');
 app.innerHTML = `
@@ -51,6 +56,7 @@ app.innerHTML = `
         <div class="viewToggle">
           <button class="viewBtn active" data-view="list">📋 列表视图</button>
           <button class="viewBtn" data-view="calendar">📅 观测日历</button>
+          <button class="viewBtn" data-view="compare">📊 多地点对比</button>
         </div>
       </div>
       <div class="actions">
@@ -180,6 +186,96 @@ app.innerHTML = `
         </div>
       </div>
     </section>
+
+    <section class="panel" id="compareViewSection" style="display:none;">
+      <div class="panelHead">
+        <h2>多地点对比分析</h2>
+        <span id="compareDataQuality" class="countBadge"></span>
+      </div>
+      
+      <div class="compareLayout">
+        <div class="compareControls">
+          <div class="panel form">
+            <h3>选择观测地点</h3>
+            <div class="placeCheckboxes" id="placeCheckboxes"></div>
+            <p class="compareHint">至少选择2个地点进行对比</p>
+          </div>
+          
+          <div class="panel form">
+            <h3>选择日期范围</h3>
+            <div class="pair">
+              <div>
+                <label class="fieldLabel">开始日期</label>
+                <input type="date" id="compareStartDate" />
+              </div>
+              <div>
+                <label class="fieldLabel">结束日期</label>
+                <input type="date" id="compareEndDate" />
+              </div>
+            </div>
+            <button class="primary" id="applyCompareBtn">应用筛选</button>
+            <button class="ghost" id="resetCompareBtn">重置</button>
+          </div>
+          
+          <div class="panel">
+            <h3>数据质量摘要</h3>
+            <div id="compareSummary"></div>
+          </div>
+        </div>
+        
+        <div class="compareCharts">
+          <div class="panel chartPanel">
+            <div class="panelHead">
+              <h2>潮位趋势对比</h2>
+              <span class="chartSubtitle">每日平均潮位变化</span>
+            </div>
+            <div id="tideTrendChart" class="chart wideChart"></div>
+          </div>
+          
+          <div class="gridTwo">
+            <div class="panel chartPanel">
+              <div class="panelHead">
+                <h2>潮位区间对比</h2>
+                <span class="chartSubtitle">最低-最高潮位范围</span>
+              </div>
+              <div id="tideRangeChart" class="chart"></div>
+            </div>
+            <div class="panel chartPanel">
+              <div class="panelHead">
+                <h2>风速分布散点</h2>
+                <span class="chartSubtitle">每条记录的风速值</span>
+              </div>
+              <div id="windStripChart" class="chart"></div>
+            </div>
+          </div>
+          
+          <div class="gridTwo">
+            <div class="panel chartPanel">
+              <div class="panelHead">
+                <h2>综合指标雷达图</h2>
+                <span class="chartSubtitle">多维度综合对比</span>
+              </div>
+              <div id="radarCompareChart" class="chart"></div>
+            </div>
+            <div class="panel chartPanel">
+              <div class="panelHead">
+                <h2>天气分布环形图</h2>
+                <span class="chartSubtitle">各天气类型占比</span>
+              </div>
+              <div id="weatherDonutChart" class="chart"></div>
+            </div>
+          </div>
+          
+          <div class="panel chartPanel">
+            <div class="panelHead">
+              <h2>潮位分布箱线图</h2>
+              <span class="chartSubtitle">四分位数与异常值</span>
+            </div>
+            <div id="boxplotCompareChart" class="chart wideChart"></div>
+          </div>
+        </div>
+      </div>
+    </section>
   </main>
 
   <div class="modalBackdrop" id="csvModal" style="display:none;">
@@ -195,6 +291,8 @@ app.innerHTML = `
       </div>
     </div>
   </div>
+
+  <div class="chartTooltip" id="chartTooltip"></div>
 `;
 
 const form = document.querySelector('#recordForm');
@@ -295,6 +393,20 @@ snapshotForm.addEventListener('submit', (event) => {
   if (!name || !name.trim()) return;
   saveSnapshot(name);
   snapshotForm.reset();
+  render();
+});
+
+document.querySelector('#applyCompareBtn').addEventListener('click', () => {
+  compareStartDate = document.querySelector('#compareStartDate').value;
+  compareEndDate = document.querySelector('#compareEndDate').value;
+  render();
+});
+
+document.querySelector('#resetCompareBtn').addEventListener('click', () => {
+  compareSelectedPlaces = [];
+  compareStartDate = '';
+  compareEndDate = '';
+  initCompareDefaults();
   render();
 });
 
@@ -643,8 +755,15 @@ function render() {
   document.querySelectorAll('.viewBtn').forEach((btn) => {
     btn.classList.toggle('active', btn.dataset.view === currentView);
   });
+  
+  if (currentView === 'compare') {
+    renderCompareView();
+    return;
+  }
+  
   document.querySelector('#listViewSection').style.display = currentView === 'list' ? '' : 'none';
   document.querySelector('#calendarViewSection').style.display = currentView === 'calendar' ? '' : 'none';
+  document.querySelector('#compareViewSection').style.display = 'none';
   
   if (currentView === 'calendar') {
     renderCalendar();
@@ -1226,6 +1345,1057 @@ function drawBars(selector, data, unit) {
   if (!data.length) return (el.innerHTML = '<p class="empty">暂无数据</p>');
   const max = Math.max(...data.map((item) => item.value), 1);
   el.innerHTML = `<svg viewBox="0 0 500 220" role="img">${data.map((item, index) => { const width = (item.value / max) * 320; return `<g><text x="18" y="${45 + index * 42}">${item.label}</text><rect x="140" y="${24 + index * 42}" width="${width}" height="22" rx="4"/><text x="${150 + width}" y="${42 + index * 42}">${Math.round(item.value)}${unit}</text></g>`; }).join('')}</svg>`;
+}
+
+function initCompareDefaults() {
+  const places = [...new Set(records.map((record) => record.place))].sort();
+  if (places.length >= 2 && compareSelectedPlaces.length === 0) {
+    compareSelectedPlaces = places.slice(0, Math.min(3, places.length));
+  }
+  if (!compareStartDate || !compareEndDate) {
+    const dates = records.map((r) => r.date).sort();
+    if (dates.length > 0) {
+      compareStartDate = compareStartDate || dates[0];
+      compareEndDate = compareEndDate || dates[dates.length - 1];
+    }
+  }
+  document.querySelector('#compareStartDate').value = compareStartDate;
+  document.querySelector('#compareEndDate').value = compareEndDate;
+}
+
+function getPlaceDateRange(place) {
+  const placeRecords = records.filter((r) => r.place === place);
+  if (placeRecords.length === 0) return null;
+  const dates = placeRecords.map((r) => r.date).sort();
+  return { min: dates[0], max: dates[dates.length - 1], count: placeRecords.length };
+}
+
+function getOverlappingDateRange(places) {
+  const ranges = places.map((p) => getPlaceDateRange(p)).filter(Boolean);
+  if (ranges.length === 0) return null;
+  const maxStart = ranges.reduce((max, r) => (r.min > max ? r.min : max), ranges[0].min);
+  const minEnd = ranges.reduce((min, r) => (r.max < min ? r.max : min), ranges[0].max);
+  if (maxStart > minEnd) return null;
+  return { start: maxStart, end: minEnd };
+}
+
+function getDatesInRange(startDate, endDate) {
+  const dates = [];
+  const current = new Date(startDate);
+  const end = new Date(endDate);
+  while (current <= end) {
+    dates.push(current.toISOString().slice(0, 10));
+    current.setDate(current.getDate() + 1);
+  }
+  return dates;
+}
+
+function calculateCompareStats(selectedPlaces, startDate, endDate) {
+  const results = {};
+  const allDates = getDatesInRange(startDate, endDate);
+  
+  selectedPlaces.forEach((place, idx) => {
+    const placeRecords = records.filter(
+      (r) => r.place === place && r.date >= startDate && r.date <= endDate
+    );
+    
+    const datesWithData = [...new Set(placeRecords.map((r) => r.date))];
+    const missingDates = allDates.filter((d) => !datesWithData.includes(d));
+    
+    const levels = placeRecords.map((r) => r.level);
+    const winds = placeRecords.map((r) => r.wind);
+    
+    const weatherCount = {};
+    placeRecords.forEach((r) => {
+      weatherCount[r.weather] = (weatherCount[r.weather] || 0) + 1;
+    });
+    
+    results[place] = {
+      color: compareColors[idx % compareColors.length],
+      index: idx,
+      recordCount: placeRecords.length,
+      expectedDays: allDates.length,
+      daysWithData: datesWithData.length,
+      missingDates: missingDates,
+      avgLevel: levels.length ? avg(levels) : 0,
+      maxLevel: levels.length ? Math.max(...levels) : 0,
+      minLevel: levels.length ? Math.min(...levels) : 0,
+      medianLevel: levels.length ? getMedian(levels) : 0,
+      q1Level: levels.length ? getQuantile(levels, 0.25) : 0,
+      q3Level: levels.length ? getQuantile(levels, 0.75) : 0,
+      avgWind: winds.length ? avg(winds) : 0,
+      maxWind: winds.length ? Math.max(...winds) : 0,
+      weatherDistribution: weatherCount,
+      dailyRecords: aggregateByDate(placeRecords),
+      levels: levels.sort((a, b) => a - b),
+      winds: winds.sort((a, b) => a - b)
+    };
+  });
+  
+  return results;
+}
+
+function getMedian(values) {
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 !== 0 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+}
+
+function getQuantile(values, q) {
+  const sorted = [...values].sort((a, b) => a - b);
+  const pos = (sorted.length - 1) * q;
+  const base = Math.floor(pos);
+  const rest = pos - base;
+  if (sorted[base + 1] !== undefined) {
+    return sorted[base] + rest * (sorted[base + 1] - sorted[base]);
+  } else {
+    return sorted[base];
+  }
+}
+
+function renderPlaceCheckboxes() {
+  const container = document.querySelector('#placeCheckboxes');
+  const places = [...new Set(records.map((record) => record.place))].sort();
+  
+  if (places.length === 0) {
+    container.innerHTML = '<p class="empty">暂无观测地点数据</p>';
+    return;
+  }
+  
+  container.innerHTML = places.map((place) => {
+    const placeInfo = getPlaceDateRange(place);
+    const isChecked = compareSelectedPlaces.includes(place);
+    const recordCount = placeInfo ? placeInfo.count : 0;
+    return `
+      <label class="placeCheckbox">
+        <input type="checkbox" data-place="${escapeHtml(place)}" ${isChecked ? 'checked' : ''} />
+        <span class="checkboxLabel">${escapeHtml(place)}</span>
+        <span class="recordCount">${recordCount}条</span>
+      </label>
+    `;
+  }).join('');
+  
+  container.querySelectorAll('input[type="checkbox"]').forEach((cb) => {
+    cb.addEventListener('change', (e) => {
+      const place = e.target.dataset.place;
+      if (e.target.checked) {
+        if (!compareSelectedPlaces.includes(place)) {
+          compareSelectedPlaces.push(place);
+        }
+      } else {
+        compareSelectedPlaces = compareSelectedPlaces.filter((p) => p !== place);
+      }
+      render();
+    });
+  });
+}
+
+function renderCompareSummary(stats, selectedPlaces) {
+  const container = document.querySelector('#compareSummary');
+  const qualityBadge = document.querySelector('#compareDataQuality');
+  
+  if (selectedPlaces.length < 2) {
+    container.innerHTML = '<p class="empty">请至少选择2个地点进行对比</p>';
+    qualityBadge.textContent = '';
+    return;
+  }
+  
+  const overlapping = getOverlappingDateRange(selectedPlaces);
+  const effectiveStart = compareStartDate && overlapping ? (compareStartDate > overlapping.start ? compareStartDate : overlapping.start) : (overlapping ? overlapping.start : '');
+  const effectiveEnd = compareEndDate && overlapping ? (compareEndDate < overlapping.end ? compareEndDate : overlapping.end) : (overlapping ? overlapping.end : '');
+  
+  let issues = [];
+  if (!overlapping) {
+    issues.push({ type: 'error', text: '所选地点没有共同的观测日期' });
+  } else {
+    if (compareStartDate && compareStartDate < overlapping.start) {
+      issues.push({ type: 'warning', text: `部分地点在 ${compareStartDate} 至 ${overlapping.start} 期间无数据` });
+    }
+    if (compareEndDate && compareEndDate > overlapping.end) {
+      issues.push({ type: 'warning', text: `部分地点在 ${overlapping.end} 至 ${compareEndDate} 期间无数据` });
+    }
+  }
+  
+  selectedPlaces.forEach((place) => {
+    const s = stats[place];
+    if (s && s.missingDates.length > 0) {
+      const missingPct = Math.round((s.missingDates.length / s.expectedDays) * 100);
+      if (missingPct > 30) {
+        issues.push({ type: 'warning', text: `${place} 数据缺失 ${missingPct}%` });
+      }
+    }
+  });
+  
+  const minRecords = Math.min(...selectedPlaces.map((p) => stats[p]?.recordCount || 0));
+  const maxRecords = Math.max(...selectedPlaces.map((p) => stats[p]?.recordCount || 0));
+  if (maxRecords > minRecords * 2 && minRecords > 0) {
+    issues.push({ type: 'info', text: `各地点记录数量差异较大 (${minRecords}-${maxRecords}条)` });
+  }
+  
+  let qualityText = '数据良好';
+  let qualityClass = 'compareQualityGood';
+  if (issues.some((i) => i.type === 'error')) {
+    qualityText = '数据不可用';
+    qualityClass = 'compareQualityError';
+  } else if (issues.some((i) => i.type === 'warning')) {
+    qualityText = '存在数据问题';
+    qualityClass = 'compareQualityWarning';
+  }
+  qualityBadge.textContent = qualityText;
+  qualityBadge.className = `countBadge ${qualityClass}`;
+  
+  let issuesHtml = '';
+  if (issues.length > 0) {
+    issuesHtml = `
+      <div class="compareIssues">
+        ${issues.map((i) => `<div class="compareIssue ${i.type}">${i.text}</div>`).join('')}
+      </div>
+    `;
+  }
+  
+  container.innerHTML = `
+    <div class="compareSummaryGrid">
+      ${selectedPlaces.map((place) => {
+        const s = stats[place];
+        if (!s) return '';
+        const dataCompleteness = s.expectedDays > 0 ? Math.round((s.daysWithData / s.expectedDays) * 100) : 0;
+        return `
+          <div class="compareSummaryCard" style="border-left: 4px solid ${s.color}">
+            <div class="compareSummaryTitle">${escapeHtml(place)}</div>
+            <div class="compareSummaryStats">
+              <div><span>记录数</span><strong>${s.recordCount}</strong></div>
+              <div><span>有数据天数</span><strong>${s.daysWithData}/${s.expectedDays}</strong></div>
+              <div><span>数据完整度</span><strong>${dataCompleteness}%</strong></div>
+            </div>
+            <div class="completenessBar">
+              <div class="completenessFill" style="width: ${dataCompleteness}%; background: ${s.color}"></div>
+            </div>
+          </div>
+        `;
+      }).join('')}
+    </div>
+    ${overlapping ? `
+      <div class="compareDateInfo">
+        <strong>共同观测期：</strong>${effectiveStart || overlapping.start} 至 ${effectiveEnd || overlapping.end}
+      </div>
+    ` : ''}
+    ${issuesHtml}
+  `;
+}
+
+function drawGroupedBarChart(selector, stats, places, metricLabels, unit) {
+  const el = document.querySelector(selector);
+  if (places.length < 2) return (el.innerHTML = '<p class="empty">请选择至少2个地点</p>');
+  
+  const metrics = metricLabels.map((m) => m.key);
+  const allValues = [];
+  places.forEach((place) => {
+    metrics.forEach((m) => {
+      if (stats[place] && stats[place][m] !== undefined) {
+        allValues.push(stats[place][m]);
+      }
+    });
+  });
+  
+  if (allValues.length === 0) return (el.innerHTML = '<p class="empty">暂无数据</p>');
+  
+  const max = Math.max(...allValues) * 1.15;
+  const chartWidth = 600;
+  const chartHeight = 300;
+  const padding = { top: 40, right: 20, bottom: 60, left: 60 };
+  const innerWidth = chartWidth - padding.left - padding.right;
+  const innerHeight = chartHeight - padding.top - padding.bottom;
+  
+  const groupWidth = innerWidth / metrics.length;
+  const barWidth = (groupWidth * 0.7) / places.length;
+  const barGap = groupWidth * 0.15;
+  
+  let bars = '';
+  let labels = '';
+  let legend = '';
+  
+  metrics.forEach((metric, mIdx) => {
+    const groupX = padding.left + mIdx * groupWidth + barGap;
+    
+    labels += `<text x="${groupX + groupWidth / 2 - barGap / 2}" y="${chartHeight - 25}" text-anchor="middle" class="chartLabel">${metricLabels[mIdx].label}</text>`;
+    
+    places.forEach((place, pIdx) => {
+      const s = stats[place];
+      if (!s) return;
+      
+      const value = s[metric];
+      const barHeight = (value / max) * innerHeight;
+      const x = groupX + pIdx * barWidth;
+      const y = padding.top + innerHeight - barHeight;
+      
+      bars += `
+        <g>
+          <rect x="${x}" y="${y}" width="${barWidth - 2}" height="${barHeight}" fill="${s.color}" rx="4">
+            <title>${escapeHtml(place)} - ${metricLabels[mIdx].label}: ${Math.round(value)}${unit}</title>
+          </rect>
+          <text x="${x + barWidth / 2 - 1}" y="${y - 6}" text-anchor="middle" class="chartValue">${Math.round(value)}</text>
+        </g>
+      `;
+    });
+  });
+  
+  places.forEach((place, idx) => {
+    const s = stats[place];
+    if (!s) return;
+    legend += `
+      <g transform="translate(${padding.left + idx * 120}, 15)">
+        <rect x="0" y="0" width="14" height="14" fill="${s.color}" rx="2"/>
+        <text x="22" y="12" class="legendText">${escapeHtml(place)}</text>
+      </g>
+    `;
+  });
+  
+  const yTicks = 5;
+  let yAxis = '';
+  for (let i = 0; i <= yTicks; i++) {
+    const y = padding.top + (innerHeight / yTicks) * i;
+    const value = Math.round(max - (max / yTicks) * i);
+    yAxis += `<line x1="${padding.left}" y1="${y}" x2="${chartWidth - padding.right}" y2="${y}" stroke="#e0efec" stroke-width="1"/>`;
+    yAxis += `<text x="${padding.left - 10}" y="${y + 4}" text-anchor="end" class="chartLabel">${value}${unit}</text>`;
+  }
+  
+  el.innerHTML = `
+    <svg viewBox="0 0 ${chartWidth} ${chartHeight}" role="img">
+      ${yAxis}
+      ${bars}
+      ${labels}
+      ${legend}
+    </svg>
+  `;
+}
+
+function drawRadarChart(selector, stats, places) {
+  const el = document.querySelector(selector);
+  if (places.length < 2) return (el.innerHTML = '<p class="empty">请选择至少2个地点</p>');
+  
+  const axes = [
+    { key: 'avgLevel', label: '平均潮位', max: 400 },
+    { key: 'maxLevel', label: '最高潮位', max: 400 },
+    { key: 'avgWind', label: '平均风速', max: 30 },
+    { key: 'maxWind', label: '最大风速', max: 40 },
+    { key: 'daysWithData', label: '观测天数', max: Math.max(...places.map((p) => stats[p]?.expectedDays || 30)) }
+  ];
+  
+  const chartWidth = 350;
+  const chartHeight = 350;
+  const centerX = chartWidth / 2;
+  const centerY = chartHeight / 2;
+  const radius = Math.min(chartWidth, chartHeight) / 2 - 60;
+  const angleStep = (Math.PI * 2) / axes.length;
+  
+  let grid = '';
+  let axisLabels = '';
+  let polygons = '';
+  let legend = '';
+  
+  for (let level = 1; level <= 5; level++) {
+    const r = (radius / 5) * level;
+    let points = '';
+    axes.forEach((axis, idx) => {
+      const angle = idx * angleStep - Math.PI / 2;
+      const x = centerX + r * Math.cos(angle);
+      const y = centerY + r * Math.sin(angle);
+      points += `${x},${y} `;
+    });
+    grid += `<polygon points="${points.trim()}" fill="none" stroke="#e0efec" stroke-width="1"/>`;
+  }
+  
+  axes.forEach((axis, idx) => {
+    const angle = idx * angleStep - Math.PI / 2;
+    const x = centerX + radius * Math.cos(angle);
+    const y = centerY + radius * Math.sin(angle);
+    grid += `<line x1="${centerX}" y1="${centerY}" x2="${x}" y2="${y}" stroke="#e0efec" stroke-width="1"/>`;
+    
+    const labelX = centerX + (radius + 25) * Math.cos(angle);
+    const labelY = centerY + (radius + 25) * Math.sin(angle);
+    axisLabels += `<text x="${labelX}" y="${labelY}" text-anchor="middle" class="chartLabel">${axis.label}</text>`;
+  });
+  
+  places.forEach((place, pIdx) => {
+    const s = stats[place];
+    if (!s) return;
+    
+    let points = '';
+    axes.forEach((axis, idx) => {
+      const angle = idx * angleStep - Math.PI / 2;
+      const value = s[axis.key] || 0;
+      const normalizedValue = Math.min(value / axis.max, 1);
+      const r = radius * normalizedValue;
+      const x = centerX + r * Math.cos(angle);
+      const y = centerY + r * Math.sin(angle);
+      points += `${x},${y} `;
+    });
+    
+    polygons += `
+      <polygon points="${points.trim()}" fill="${s.color}" fill-opacity="0.2" stroke="${s.color}" stroke-width="2">
+        <title>${escapeHtml(place)}</title>
+      </polygon>
+    `;
+    
+    legend += `
+      <g transform="translate(${20}, ${20 + pIdx * 25})">
+        <rect x="0" y="0" width="14" height="14" fill="${s.color}" rx="2"/>
+        <text x="22" y="12" class="legendText">${escapeHtml(place)}</text>
+      </g>
+    `;
+  });
+  
+  el.innerHTML = `
+    <svg viewBox="0 0 ${chartWidth} ${chartHeight}" role="img">
+      ${grid}
+      ${polygons}
+      ${axisLabels}
+      ${legend}
+    </svg>
+  `;
+}
+
+function drawStackedBarChart(selector, stats, places) {
+  const el = document.querySelector(selector);
+  if (places.length < 2) return (el.innerHTML = '<p class="empty">请选择至少2个地点</p>');
+  
+  const weatherTypes = ['晴', '多云', '阴', '小雨', '中雨', '大雨', '大风', '雾'];
+  const weatherColors = {
+    '晴': '#fbbf24',
+    '多云': '#94a3b8',
+    '阴': '#64748b',
+    '小雨': '#60a5fa',
+    '中雨': '#3b82f6',
+    '大雨': '#1d4ed8',
+    '大风': '#8b5cf6',
+    '雾': '#9ca3af'
+  };
+  
+  const chartWidth = 600;
+  const chartHeight = 300;
+  const padding = { top: 40, right: 120, bottom: 60, left: 60 };
+  const innerWidth = chartWidth - padding.left - padding.right;
+  const innerHeight = chartHeight - padding.top - padding.bottom;
+  
+  const barWidth = innerWidth / places.length * 0.7;
+  const barGap = innerWidth / places.length * 0.15;
+  
+  let bars = '';
+  let labels = '';
+  let legend = '';
+  
+  places.forEach((place, pIdx) => {
+    const s = stats[place];
+    if (!s) return;
+    
+    const total = s.recordCount || 1;
+    let currentY = padding.top + innerHeight;
+    
+    weatherTypes.forEach((weather) => {
+      const count = s.weatherDistribution[weather] || 0;
+      if (count === 0) return;
+      
+      const height = (count / total) * innerHeight;
+      const x = padding.left + pIdx * (barWidth + barGap) + barGap;
+      const y = currentY - height;
+      currentY = y;
+      
+      bars += `
+        <g>
+          <rect x="${x}" y="${y}" width="${barWidth}" height="${height}" fill="${weatherColors[weather] || '#999'}" rx="2">
+            <title>${escapeHtml(place)} - ${weather}: ${count}次 (${Math.round((count / total) * 100)}%)</title>
+          </rect>
+        </g>
+      `;
+    });
+    
+    labels += `<text x="${padding.left + pIdx * (barWidth + barGap) + barGap + barWidth / 2}" y="${chartHeight - 25}" text-anchor="middle" class="chartLabel">${escapeHtml(place)}</text>`;
+  });
+  
+  weatherTypes.forEach((weather, idx) => {
+    legend += `
+      <g transform="translate(${chartWidth - padding.right + 10}, ${padding.top + idx * 22})">
+        <rect x="0" y="0" width="14" height="14" fill="${weatherColors[weather] || '#999'}" rx="2"/>
+        <text x="22" y="12" class="legendText">${weather}</text>
+      </g>
+    `;
+  });
+  
+  const yTicks = 5;
+  let yAxis = '';
+  for (let i = 0; i <= yTicks; i++) {
+    const y = padding.top + (innerHeight / yTicks) * (yTicks - i);
+    const value = i * 20;
+    yAxis += `<line x1="${padding.left}" y1="${y}" x2="${chartWidth - padding.right}" y2="${y}" stroke="#e0efec" stroke-width="1"/>`;
+    yAxis += `<text x="${padding.left - 10}" y="${y + 4}" text-anchor="end" class="chartLabel">${value}%</text>`;
+  }
+  
+  el.innerHTML = `
+    <svg viewBox="0 0 ${chartWidth} ${chartHeight}" role="img">
+      ${yAxis}
+      ${bars}
+      ${labels}
+      ${legend}
+    </svg>
+  `;
+}
+
+function drawBoxplotChart(selector, stats, places) {
+  const el = document.querySelector(selector);
+  if (places.length < 2) return (el.innerHTML = '<p class="empty">请选择至少2个地点</p>');
+  
+  const allValues = [];
+  places.forEach((place) => {
+    const s = stats[place];
+    if (s && s.levels.length > 0) {
+      allValues.push(...s.levels);
+    }
+  });
+  
+  if (allValues.length === 0) return (el.innerHTML = '<p class="empty">暂无数据</p>');
+  
+  const min = Math.min(...allValues) * 0.9;
+  const max = Math.max(...allValues) * 1.1;
+  const range = max - min;
+  
+  const chartWidth = 700;
+  const chartHeight = 300;
+  const padding = { top: 40, right: 40, bottom: 60, left: 60 };
+  const innerWidth = chartWidth - padding.left - padding.right;
+  const innerHeight = chartHeight - padding.top - padding.bottom;
+  
+  const boxWidth = innerWidth / places.length * 0.5;
+  const boxGap = innerWidth / places.length * 0.25;
+  
+  let boxes = '';
+  let labels = '';
+  let outliers = '';
+  
+  function getY(value) {
+    return padding.top + innerHeight - ((value - min) / range) * innerHeight;
+  }
+  
+  places.forEach((place, pIdx) => {
+    const s = stats[place];
+    if (!s || s.levels.length === 0) return;
+    
+    const centerX = padding.left + pIdx * (boxWidth + boxGap * 2) + boxGap + boxWidth / 2;
+    const boxLeft = centerX - boxWidth / 2;
+    
+    const q1Y = getY(s.q1Level);
+    const medianY = getY(s.medianLevel);
+    const q3Y = getY(s.q3Level);
+    const minY = getY(s.minLevel);
+    const maxY = getY(s.maxLevel);
+    const boxHeight = q3Y - q1Y;
+    const iqr = s.q3Level - s.q1Level;
+    const lowerFence = s.q1Level - 1.5 * iqr;
+    const upperFence = s.q3Level + 1.5 * iqr;
+    
+    const whiskerMin = Math.max(s.minLevel, lowerFence);
+    const whiskerMax = Math.min(s.maxLevel, upperFence);
+    const whiskerMinY = getY(whiskerMin);
+    const whiskerMaxY = getY(whiskerMax);
+    
+    s.levels.forEach((val) => {
+      if (val < lowerFence || val > upperFence) {
+        const outlierY = getY(val);
+        outliers += `<circle cx="${centerX}" cy="${outlierY}" r="4" fill="${s.color}" stroke="white" stroke-width="1">
+          <title>${escapeHtml(place)} 异常值: ${val}cm</title>
+        </circle>`;
+      }
+    });
+    
+    boxes += `
+      <g>
+        <line x1="${centerX}" y1="${whiskerMaxY}" x2="${centerX}" y2="${q3Y}" stroke="${s.color}" stroke-width="2"/>
+        <line x1="${centerX - 10}" y1="${whiskerMaxY}" x2="${centerX + 10}" y2="${whiskerMaxY}" stroke="${s.color}" stroke-width="2"/>
+        <line x1="${centerX}" y1="${whiskerMinY}" x2="${centerX}" y2="${q1Y}" stroke="${s.color}" stroke-width="2"/>
+        <line x1="${centerX - 10}" y1="${whiskerMinY}" x2="${centerX + 10}" y2="${whiskerMinY}" stroke="${s.color}" stroke-width="2"/>
+        <rect x="${boxLeft}" y="${q1Y}" width="${boxWidth}" height="${boxHeight}" fill="${s.color}" fill-opacity="0.3" stroke="${s.color}" stroke-width="2" rx="2">
+          <title>${escapeHtml(place)}: Q1=${Math.round(s.q1Level)}, 中位=${Math.round(s.medianLevel)}, Q3=${Math.round(s.q3Level)}</title>
+        </rect>
+        <line x1="${boxLeft}" y1="${medianY}" x2="${boxLeft + boxWidth}" y2="${medianY}" stroke="${s.color}" stroke-width="3"/>
+        <text x="${centerX}" y="${q1Y - 8}" text-anchor="middle" class="chartValue">${Math.round(s.maxLevel)}</text>
+        <text x="${centerX}" y="${q3Y + boxHeight + 20}" text-anchor="middle" class="chartValue">${Math.round(s.minLevel)}</text>
+      </g>
+    `;
+    
+    labels += `<text x="${centerX}" y="${chartHeight - 25}" text-anchor="middle" class="chartLabel">${escapeHtml(place)}</text>`;
+  });
+  
+  const yTicks = 6;
+  let yAxis = '';
+  for (let i = 0; i <= yTicks; i++) {
+    const value = min + (range / yTicks) * (yTicks - i);
+    const y = getY(value);
+    yAxis += `<line x1="${padding.left}" y1="${y}" x2="${chartWidth - padding.right}" y2="${y}" stroke="#e0efec" stroke-width="1"/>`;
+    yAxis += `<text x="${padding.left - 10}" y="${y + 4}" text-anchor="end" class="chartLabel">${Math.round(value)}cm</text>`;
+  }
+  
+  el.innerHTML = `
+    <svg viewBox="0 0 ${chartWidth} ${chartHeight}" role="img">
+      ${yAxis}
+      ${boxes}
+      ${outliers}
+      ${labels}
+    </svg>
+  `;
+}
+
+function drawTideTrendChart(selector, stats, places, startDate, endDate) {
+  const el = document.querySelector(selector);
+  if (places.length < 2) return (el.innerHTML = '<p class="empty">请选择至少2个地点</p>');
+  
+  const allDates = getDatesInRange(startDate, endDate);
+  if (allDates.length === 0) return (el.innerHTML = '<p class="empty">日期范围内无数据</p>');
+  
+  const chartWidth = 720;
+  const chartHeight = 320;
+  const padding = { top: 40, right: 30, bottom: 60, left: 60 };
+  const innerWidth = chartWidth - padding.left - padding.right;
+  const innerHeight = chartHeight - padding.top - padding.bottom;
+  
+  const allLevels = [];
+  places.forEach((place) => {
+    const s = stats[place];
+    if (s && s.dailyRecords) {
+      s.dailyRecords.forEach((dayRecords) => {
+        dayRecords.forEach((r) => allLevels.push(r.level));
+      });
+    }
+  });
+  
+  if (allLevels.length === 0) return (el.innerHTML = '<p class="empty">暂无潮位数据</p>');
+  
+  const maxLevel = Math.max(...allLevels) * 1.1;
+  const minLevel = Math.min(...allLevels) * 0.9;
+  const levelRange = maxLevel - minLevel;
+  
+  function getX(dateStr) {
+    const idx = allDates.indexOf(dateStr);
+    if (idx === -1) return null;
+    return padding.left + (idx / Math.max(allDates.length - 1, 1)) * innerWidth;
+  }
+  
+  function getY(level) {
+    return padding.top + innerHeight - ((level - minLevel) / levelRange) * innerHeight;
+  }
+  
+  let lines = '';
+  let dots = '';
+  let legend = '';
+  
+  places.forEach((place, pIdx) => {
+    const s = stats[place];
+    if (!s) return;
+    
+    const dailyAvgs = [];
+    allDates.forEach((date) => {
+      const dayRecords = s.dailyRecords.get(date);
+      if (dayRecords && dayRecords.length > 0) {
+        const avgVal = avg(dayRecords.map((r) => r.level));
+        dailyAvgs.push({ date, value: avgVal });
+      }
+    });
+    
+    if (dailyAvgs.length === 0) return;
+    
+    let points = '';
+    dailyAvgs.forEach((d) => {
+      const x = getX(d.date);
+      const y = getY(d.value);
+      if (x !== null) {
+        points += `${x},${y} `;
+        dots += `
+          <circle cx="${x}" cy="${y}" r="5" fill="${s.color}" stroke="white" stroke-width="2">
+            <title>${escapeHtml(place)} · ${d.date} · 平均${Math.round(d.value)}cm</title>
+          </circle>
+        `;
+      }
+    });
+    
+    if (points.trim()) {
+      lines += `<polyline points="${points.trim()}" fill="none" stroke="${s.color}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>`;
+    }
+    
+    legend += `
+      <g transform="translate(${padding.left + pIdx * 130}, 12)">
+        <line x1="0" y1="7" x2="20" y2="7" stroke="${s.color}" stroke-width="3"/>
+        <circle cx="10" cy="7" r="4" fill="${s.color}" stroke="white" stroke-width="1.5"/>
+        <text x="30" y="11" class="legendText">${escapeHtml(place)}</text>
+      </g>
+    `;
+  });
+  
+  const yTicks = 5;
+  let yAxis = '';
+  for (let i = 0; i <= yTicks; i++) {
+    const value = minLevel + (levelRange / yTicks) * (yTicks - i);
+    const y = getY(value);
+    yAxis += `<line x1="${padding.left}" y1="${y}" x2="${chartWidth - padding.right}" y2="${y}" stroke="#e0efec" stroke-width="1"/>`;
+    yAxis += `<text x="${padding.left - 10}" y="${y + 4}" text-anchor="end" class="chartLabel">${Math.round(value)}cm</text>`;
+  }
+  
+  let xLabels = '';
+  const labelStep = Math.max(1, Math.floor(allDates.length / 8));
+  allDates.forEach((date, idx) => {
+    if (idx % labelStep === 0 || idx === allDates.length - 1) {
+      const x = getX(date);
+      if (x !== null) {
+        xLabels += `<text x="${x}" y="${chartHeight - 35}" text-anchor="middle" class="chartLabel">${date.slice(5)}</text>`;
+      }
+    }
+  });
+  
+  el.innerHTML = `
+    <svg viewBox="0 0 ${chartWidth} ${chartHeight}" role="img">
+      ${yAxis}
+      ${lines}
+      ${dots}
+      ${xLabels}
+      ${legend}
+    </svg>
+  `;
+}
+
+function drawDumbbellChart(selector, stats, places) {
+  const el = document.querySelector(selector);
+  if (places.length < 2) return (el.innerHTML = '<p class="empty">请选择至少2个地点</p>');
+  
+  const allValues = [];
+  places.forEach((place) => {
+    const s = stats[place];
+    if (s) {
+      allValues.push(s.minLevel, s.maxLevel);
+    }
+  });
+  
+  if (allValues.length === 0) return (el.innerHTML = '<p class="empty">暂无数据</p>');
+  
+  const max = Math.max(...allValues) * 1.1;
+  const min = Math.min(...allValues) * 0.9;
+  const range = max - min;
+  
+  const chartWidth = 380;
+  const chartHeight = 300;
+  const padding = { top: 30, right: 60, bottom: 40, left: 100 };
+  const innerWidth = chartWidth - padding.left - padding.right;
+  const innerHeight = chartHeight - padding.top - padding.bottom;
+  
+  const rowHeight = innerHeight / places.length;
+  
+  function getX(value) {
+    return padding.left + ((value - min) / range) * innerWidth;
+  }
+  
+  let dumbbells = '';
+  let yLabels = '';
+  let valueLabels = '';
+  
+  places.forEach((place, pIdx) => {
+    const s = stats[place];
+    if (!s) return;
+    
+    const y = padding.top + pIdx * rowHeight + rowHeight / 2;
+    
+    const minX = getX(s.minLevel);
+    const maxX = getX(s.maxLevel);
+    const avgX = getX(s.avgLevel);
+    
+    dumbbells += `
+      <line x1="${minX}" y1="${y}" x2="${maxX}" y2="${y}" stroke="${s.color}" stroke-width="4" stroke-linecap="round" opacity="0.3"/>
+      <circle cx="${minX}" cy="${y}" r="8" fill="white" stroke="${s.color}" stroke-width="3">
+        <title>${escapeHtml(place)} 最低潮位: ${Math.round(s.minLevel)}cm</title>
+      </circle>
+      <circle cx="${maxX}" cy="${y}" r="8" fill="${s.color}" stroke="white" stroke-width="2">
+        <title>${escapeHtml(place)} 最高潮位: ${Math.round(s.maxLevel)}cm</title>
+      </circle>
+      <circle cx="${avgX}" cy="${y}" r="5" fill="#f59e0b" stroke="white" stroke-width="1.5">
+        <title>${escapeHtml(place)} 平均潮位: ${Math.round(s.avgLevel)}cm</title>
+      </circle>
+    `;
+    
+    yLabels += `<text x="${padding.left - 15}" y="${y + 5}" text-anchor="end" class="chartLabel">${escapeHtml(place)}</text>`;
+    
+    valueLabels += `
+      <text x="${minX}" y="${y - 14}" text-anchor="middle" class="chartValue" style="font-size: 10px;">${Math.round(s.minLevel)}</text>
+      <text x="${maxX}" y="${y - 14}" text-anchor="middle" class="chartValue" style="font-size: 10px;">${Math.round(s.maxLevel)}</text>
+    `;
+  });
+  
+  let legend = `
+    <g transform="translate(${padding.left}, ${chartHeight - 15})">
+      <circle cx="0" cy="0" r="5" fill="white" stroke="#666" stroke-width="2"/>
+      <text x="12" y="4" class="legendText">最低</text>
+      <circle cx="60" cy="0" r="4" fill="#f59e0b" stroke="white" stroke-width="1.5"/>
+      <text x="72" y="4" class="legendText">平均</text>
+      <circle cx="120" cy="0" r="5" fill="#666" stroke="white" stroke-width="1.5"/>
+      <text x="132" y="4" class="legendText">最高</text>
+    </g>
+  `;
+  
+  const xTicks = 5;
+  let xAxis = '';
+  for (let i = 0; i <= xTicks; i++) {
+    const value = min + (range / xTicks) * i;
+    const x = getX(value);
+    xAxis += `<line x1="${x}" y1="${padding.top}" x2="${x}" y2="${padding.top + innerHeight}" stroke="#e0efec" stroke-width="1"/>`;
+    xAxis += `<text x="${x}" y="${chartHeight - 35}" text-anchor="middle" class="chartLabel">${Math.round(value)}cm</text>`;
+  }
+  
+  el.innerHTML = `
+    <svg viewBox="0 0 ${chartWidth} ${chartHeight}" role="img">
+      ${xAxis}
+      ${dumbbells}
+      ${yLabels}
+      ${valueLabels}
+      ${legend}
+    </svg>
+  `;
+}
+
+function drawWindStripChart(selector, stats, places) {
+  const el = document.querySelector(selector);
+  if (places.length < 2) return (el.innerHTML = '<p class="empty">请选择至少2个地点</p>');
+  
+  const allWinds = [];
+  places.forEach((place) => {
+    const s = stats[place];
+    if (s && s.winds.length > 0) {
+      allWinds.push(...s.winds);
+    }
+  });
+  
+  if (allWinds.length === 0) return (el.innerHTML = '<p class="empty">暂无风速数据</p>');
+  
+  const maxWind = Math.max(...allWinds) * 1.1;
+  const minWind = Math.min(...allWinds) * 0.9;
+  const windRange = maxWind - minWind;
+  
+  const chartWidth = 380;
+  const chartHeight = 300;
+  const padding = { top: 30, right: 40, bottom: 50, left: 100 };
+  const innerWidth = chartWidth - padding.left - padding.right;
+  const innerHeight = chartHeight - padding.top - padding.bottom;
+  
+  const rowHeight = innerHeight / places.length;
+  
+  function getX(wind) {
+    return padding.left + ((wind - minWind) / windRange) * innerWidth;
+  }
+  
+  let strips = '';
+  let yLabels = '';
+  let avgMarkers = '';
+  
+  places.forEach((place, pIdx) => {
+    const s = stats[place];
+    if (!s || s.winds.length === 0) return;
+    
+    const y = padding.top + pIdx * rowHeight + rowHeight / 2;
+    const stripHalfHeight = Math.min(rowHeight * 0.35, 20);
+    
+    strips += `
+      <rect x="${padding.left}" y="${y - stripHalfHeight}" width="${innerWidth}" height="${stripHalfHeight * 2}" fill="#f8faf9" rx="4"/>
+    `;
+    
+    s.winds.forEach((wind, wIdx) => {
+      const x = getX(wind);
+      const jitterY = y + (Math.random() - 0.5) * stripHalfHeight * 1.2;
+      const opacity = 0.6 + Math.random() * 0.4;
+      strips += `
+        <circle cx="${x}" cy="${jitterY}" r="4" fill="${s.color}" opacity="${opacity}">
+          <title>${escapeHtml(place)} · ${wind}km/h</title>
+        </circle>
+      `;
+    });
+    
+    const avgX = getX(s.avgWind);
+    avgMarkers += `
+      <line x1="${avgX}" y1="${y - stripHalfHeight - 5}" x2="${avgX}" y2="${y + stripHalfHeight + 5}" stroke="#f59e0b" stroke-width="2" stroke-dasharray="3,2"/>
+      <circle cx="${avgX}" cy="${y}" r="6" fill="#f59e0b" stroke="white" stroke-width="2">
+        <title>${escapeHtml(place)} 平均风速: ${s.avgWind.toFixed(1)}km/h</title>
+      </circle>
+    `;
+    
+    yLabels += `<text x="${padding.left - 15}" y="${y + 5}" text-anchor="end" class="chartLabel">${escapeHtml(place)}</text>`;
+  });
+  
+  const xTicks = 5;
+  let xAxis = '';
+  for (let i = 0; i <= xTicks; i++) {
+    const value = minWind + (windRange / xTicks) * i;
+    const x = getX(value);
+    xAxis += `<line x1="${x}" y1="${padding.top}" x2="${x}" y2="${padding.top + innerHeight}" stroke="#e0efec" stroke-width="1"/>`;
+    xAxis += `<text x="${x}" y="${chartHeight - 30}" text-anchor="middle" class="chartLabel">${Math.round(value)}</text>`;
+  }
+  
+  xAxis += `<text x="${chartWidth / 2}" y="${chartHeight - 10}" text-anchor="middle" class="chartLabel">风速 (km/h)</text>`;
+  
+  el.innerHTML = `
+    <svg viewBox="0 0 ${chartWidth} ${chartHeight}" role="img">
+      ${xAxis}
+      ${strips}
+      ${avgMarkers}
+      ${yLabels}
+    </svg>
+  `;
+}
+
+function drawWeatherDonutChart(selector, stats, places) {
+  const el = document.querySelector(selector);
+  if (places.length < 2) return (el.innerHTML = '<p class="empty">请选择至少2个地点</p>');
+  
+  const weatherTypes = ['晴', '多云', '阴', '小雨', '中雨', '大雨', '大风', '雾'];
+  const weatherColors = {
+    '晴': '#fbbf24',
+    '多云': '#94a3b8',
+    '阴': '#64748b',
+    '小雨': '#60a5fa',
+    '中雨': '#3b82f6',
+    '大雨': '#1d4ed8',
+    '大风': '#8b5cf6',
+    '雾': '#9ca3af'
+  };
+  
+  const chartWidth = 480;
+  const donutSize = 110;
+  const chartHeight = 280;
+  const centerY = chartHeight / 2 - 10;
+  
+  const donutGap = chartWidth / places.length;
+  
+  let donuts = '';
+  let labels = '';
+  let legend = '';
+  
+  places.forEach((place, pIdx) => {
+    const s = stats[place];
+    if (!s) return;
+    
+    const centerX = donutGap * pIdx + donutGap / 2;
+    const total = s.recordCount || 1;
+    
+    let currentAngle = -Math.PI / 2;
+    let segments = '';
+    
+    weatherTypes.forEach((weather) => {
+      const count = s.weatherDistribution[weather] || 0;
+      if (count === 0) return;
+      
+      const angle = (count / total) * Math.PI * 2;
+      const endAngle = currentAngle + angle;
+      
+      const innerRadius = donutSize * 0.55;
+      const outerRadius = donutSize * 0.85;
+      
+      const x1 = centerX + outerRadius * Math.cos(currentAngle);
+      const y1 = centerY + outerRadius * Math.sin(currentAngle);
+      const x2 = centerX + outerRadius * Math.cos(endAngle);
+      const y2 = centerY + outerRadius * Math.sin(endAngle);
+      const x3 = centerX + innerRadius * Math.cos(endAngle);
+      const y3 = centerY + innerRadius * Math.sin(endAngle);
+      const x4 = centerX + innerRadius * Math.cos(currentAngle);
+      const y4 = centerY + innerRadius * Math.sin(currentAngle);
+      
+      const largeArc = angle > Math.PI ? 1 : 0;
+      
+      const path = `M ${x1} ${y1} A ${outerRadius} ${outerRadius} 0 ${largeArc} 1 ${x2} ${y2} L ${x3} ${y3} A ${innerRadius} ${innerRadius} 0 ${largeArc} 0 ${x4} ${y4} Z`;
+      
+      segments += `
+        <path d="${path}" fill="${weatherColors[weather] || '#999'}">
+          <title>${escapeHtml(place)} · ${weather}: ${count}次 (${Math.round((count / total) * 100)}%)</title>
+        </path>
+      `;
+      
+      currentAngle = endAngle;
+    });
+    
+    donuts += segments;
+    
+    donuts += `
+      <circle cx="${centerX}" cy="${centerY}" r="${donutSize * 0.5}" fill="white"/>
+      <text x="${centerX}" y="${centerY - 5}" text-anchor="middle" class="chartValue" style="font-size: 18px;">${s.recordCount}</text>
+      <text x="${centerX}" y="${centerY + 15}" text-anchor="middle" class="chartLabel" style="font-size: 11px;">条记录</text>
+    `;
+    
+    labels += `<text x="${centerX}" y="${chartHeight - 20}" text-anchor="middle" class="chartLabel" style="font-weight: 600; font-size: 13px;">${escapeHtml(place)}</text>`;
+  });
+  
+  const legendY = chartHeight - 5;
+  let legendX = 10;
+  weatherTypes.slice(0, 6).forEach((weather, idx) => {
+    legend += `
+      <g transform="translate(${legendX}, ${legendY})">
+        <rect x="0" y="0" width="10" height="10" fill="${weatherColors[weather]}" rx="2"/>
+        <text x="14" y="9" class="legendText" style="font-size: 10px;">${weather}</text>
+      </g>
+    `;
+    legendX += 55;
+  });
+  
+  el.innerHTML = `
+    <svg viewBox="0 0 ${chartWidth} ${chartHeight}" role="img">
+      ${donuts}
+      ${labels}
+      ${legend}
+    </svg>
+  `;
+}
+
+function renderCompareView() {
+  document.querySelector('#listViewSection').style.display = 'none';
+  document.querySelector('#calendarViewSection').style.display = 'none';
+  document.querySelector('#compareViewSection').style.display = '';
+  
+  initCompareDefaults();
+  renderPlaceCheckboxes();
+  
+  const selectedPlaces = compareSelectedPlaces.filter((p) => 
+    records.some((r) => r.place === p)
+  );
+  
+  const emptyMsg = '<p class="empty">请选择至少2个地点进行对比</p>';
+  if (selectedPlaces.length < 2) {
+    document.querySelector('#tideTrendChart').innerHTML = emptyMsg;
+    document.querySelector('#tideRangeChart').innerHTML = emptyMsg;
+    document.querySelector('#windStripChart').innerHTML = emptyMsg;
+    document.querySelector('#radarCompareChart').innerHTML = emptyMsg;
+    document.querySelector('#weatherDonutChart').innerHTML = emptyMsg;
+    document.querySelector('#boxplotCompareChart').innerHTML = emptyMsg;
+    renderCompareSummary({}, selectedPlaces);
+    return;
+  }
+  
+  const overlapping = getOverlappingDateRange(selectedPlaces);
+  let effectiveStart = compareStartDate;
+  let effectiveEnd = compareEndDate;
+  
+  if (overlapping) {
+    if (!effectiveStart || effectiveStart < overlapping.start) {
+      effectiveStart = overlapping.start;
+    }
+    if (!effectiveEnd || effectiveEnd > overlapping.end) {
+      effectiveEnd = overlapping.end;
+    }
+  }
+  
+  if (!effectiveStart || !effectiveEnd || effectiveStart > effectiveEnd) {
+    renderCompareSummary({}, selectedPlaces);
+    return;
+  }
+  
+  const stats = calculateCompareStats(selectedPlaces, effectiveStart, effectiveEnd);
+  
+  renderCompareSummary(stats, selectedPlaces);
+  
+  drawTideTrendChart('#tideTrendChart', stats, selectedPlaces, effectiveStart, effectiveEnd);
+  drawDumbbellChart('#tideRangeChart', stats, selectedPlaces);
+  drawWindStripChart('#windStripChart', stats, selectedPlaces);
+  drawRadarChart('#radarCompareChart', stats, selectedPlaces);
+  drawWeatherDonutChart('#weatherDonutChart', stats, selectedPlaces);
+  drawBoxplotChart('#boxplotCompareChart', stats, selectedPlaces);
 }
 
 render();

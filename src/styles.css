@@ -966,3 +966,438 @@ td button {
     min-width: auto;
   }
 }
+
+.compareLayout {
+  display: grid;
+  grid-template-columns: 340px 1fr;
+  gap: 18px;
+  margin-top: 18px;
+}
+
+.compareControls {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  position: sticky;
+  top: 20px;
+  align-self: flex-start;
+}
+
+.compareCharts {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+.compareCharts .gridTwo {
+  gap: 16px;
+}
+
+.compareControls .form h3 {
+  margin: 0 0 8px 0;
+  font-size: 15px;
+  color: #0d9488;
+}
+
+.compareHint {
+  margin: 8px 0 0 0;
+  font-size: 12px;
+  color: #8899a6;
+}
+
+.placeCheckboxes {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 240px;
+  overflow-y: auto;
+  padding: 4px;
+}
+
+.placeCheckbox {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: #fbfefe;
+  border: 1px solid #e0efec;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.placeCheckbox:hover {
+  background: #f0faf8;
+  border-color: #0d9488;
+}
+
+.placeCheckbox input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  accent-color: #0d9488;
+}
+
+.checkboxLabel {
+  flex: 1;
+  font-weight: 500;
+  color: #17324d;
+}
+
+.fieldLabel {
+  display: block;
+  font-size: 12px;
+  color: #557084;
+  margin-bottom: 6px;
+  font-weight: 500;
+}
+
+.compareSummaryGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.compareSummaryCard {
+  background: #fbfefe;
+  border: 1px solid #e0efec;
+  border-radius: 6px;
+  padding: 12px;
+}
+
+.compareSummaryTitle {
+  font-weight: 600;
+  color: #17324d;
+  margin-bottom: 8px;
+  font-size: 14px;
+}
+
+.compareSummaryStats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.compareSummaryStats > div {
+  text-align: center;
+}
+
+.compareSummaryStats span {
+  display: block;
+  font-size: 11px;
+  color: #8899a6;
+  margin-bottom: 2px;
+}
+
+.compareSummaryStats strong {
+  display: block;
+  font-size: 14px;
+  color: #17324d;
+}
+
+.completenessBar {
+  height: 6px;
+  background: #e0efec;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.completenessFill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.3s;
+}
+
+.compareDateInfo {
+  margin-top: 12px;
+  padding: 10px 12px;
+  background: #d9f3ed;
+  border-radius: 6px;
+  font-size: 13px;
+  color: #0d9488;
+}
+
+.compareDateInfo strong {
+  color: #0f3f4d;
+}
+
+.compareIssues {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.compareIssue {
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.compareIssue.error {
+  background: #fef2f2;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+}
+
+.compareIssue.warning {
+  background: #fffbeb;
+  color: #92400e;
+  border: 1px solid #fde68a;
+}
+
+.compareIssue.info {
+  background: #eff6ff;
+  color: #1e40af;
+  border: 1px solid #bfdbfe;
+}
+
+.compareQualityGood {
+  background: #d9f3ed;
+  color: #0d9488;
+}
+
+.compareQualityWarning {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.compareQualityError {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.chartPanel {
+  display: flex;
+  flex-direction: column;
+}
+
+.chartSubtitle {
+  font-size: 12px;
+  color: #8899a6;
+  font-weight: normal;
+}
+
+.wideChart {
+  min-height: 280px;
+}
+
+.wideChart svg {
+  min-height: 260px;
+}
+
+.compareCharts .gridTwo {
+  gap: 16px;
+}
+
+.compareCharts .panel .chart {
+  min-height: 260px;
+}
+
+.compareCharts .panel .chart svg {
+  min-height: 240px;
+}
+
+.chartPanel .panelHead {
+  margin-bottom: 8px;
+}
+
+.chartPanel .panelHead h2 {
+  margin-bottom: 0;
+  font-size: 16px;
+}
+
+.compareCharts > .panel {
+  margin-bottom: 0;
+}
+
+.compareCharts {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.chartPanel {
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.chartPanel:hover {
+  box-shadow: 0 8px 24px rgba(22, 76, 92, 0.12);
+}
+
+.chartPanel h2 {
+  font-size: 15px;
+  color: #17324d;
+}
+
+.chartSubtitle {
+  font-size: 12px;
+  color: #8899a6;
+  font-weight: normal;
+}
+
+.wideChart {
+  min-height: 280px;
+}
+
+.wideChart svg {
+  min-height: 260px;
+}
+
+.chartPanel .panelHead {
+  margin-bottom: 4px;
+}
+
+.chartPanel .chart {
+  min-height: 260px;
+}
+
+.chartPanel .chart svg {
+  min-height: 240px;
+}
+
+svg polyline,
+svg line,
+svg path,
+svg circle,
+svg rect,
+svg polygon {
+  transition: all 0.2s ease;
+}
+
+svg circle:hover,
+svg rect:hover,
+svg polygon:hover,
+svg path:hover {
+  filter: brightness(1.1);
+  cursor: pointer;
+}
+
+.compareControls .form .pair {
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.compareControls .form .pair > div {
+  min-width: 0;
+}
+
+.compareControls .form button {
+  width: 100%;
+}
+
+.compareControls .form button.ghost {
+  background: #e4f5f1;
+}
+
+.anomalyPoint circle {
+  cursor: pointer;
+}
+
+.anomalyPoint:hover circle {
+  r: 10;
+  filter: drop-shadow(0 0 4px rgba(220, 38, 38, 0.5));
+}
+
+.chartTooltip {
+  position: fixed;
+  pointer-events: none;
+  background: rgba(15, 63, 77, 0.95);
+  color: white;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  line-height: 1.6;
+  z-index: 1000;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  max-width: 240px;
+}
+
+.chartTooltip.show {
+  opacity: 1;
+}
+
+.chartTooltip .tooltipTitle {
+  font-weight: 600;
+  margin-bottom: 4px;
+  color: #5eead4;
+}
+
+.chartTooltip .tooltipRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.chartTooltip .tooltipLabel {
+  color: #94a3b8;
+}
+
+.chartTooltip .tooltipValue {
+  font-weight: 500;
+  text-align: right;
+}
+
+@media (max-width: 1100px) {
+  .compareLayout {
+    grid-template-columns: 1fr;
+  }
+  
+  .compareControls {
+    position: static;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px;
+  }
+  
+  .compareCharts .gridTwo {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 600px) {
+  .compareControls {
+    grid-template-columns: 1fr;
+  }
+  
+  .compareSummaryStats {
+    grid-template-columns: 1fr;
+  }
+  
+  .compareCharts .panel .chart {
+    min-height: 260px;
+  }
+  
+  .compareCharts .panel .chart svg {
+    min-height: 240px;
+  }
+  
+  .chartPanel h2 {
+    font-size: 14px;
+  }
+  
+  .chartSubtitle {
+    font-size: 11px;
+  }
+  
+  .wideChart {
+    min-height: 240px;
+  }
+  
+  .wideChart svg {
+    min-height: 220px;
+  }
+  
+  .chartPanel .chart {
+    min-height: 220px;
+  }
+  
+  .chartPanel .chart svg {
+    min-height: 200px;
+  }
+}
