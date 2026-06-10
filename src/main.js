@@ -3,6 +3,7 @@ import './styles.css';
 const storageKey = 'hxwl-10-tide-records';
 const stationStorageKey = 'hxwl-10-tide-stations';
 const snapshotStorageKey = 'hxwl-10-tide-snapshots';
+const opLogStorageKey = 'hxwl-10-tide-oplog';
 
 const seed = [
   { id: crypto.randomUUID(), place: '东极青浜', date: '2026-06-03', time: '05:40', level: 128, windDir: '东北', wind: 13, weather: '多云', note: '浪面平稳' },
@@ -187,6 +188,20 @@ app.innerHTML = `
       </div>
     </section>
 
+    <section class="panel" id="oplogSection">
+      <div class="panelHead">
+        <h2>离线观测队列</h2>
+        <div class="oplogActions">
+          <span id="oplogCount" class="countBadge"></span>
+          <button class="ghost" id="undoBtn" style="background:#fef3c7;color:#92400e;">↩️ 撤销最近操作</button>
+          <button class="ghost" id="replayBtn" style="background:#dbeafe;color:#1e40af;">▶️ 重放全部操作</button>
+          <button class="ghost" id="clearOpLogBtn" style="background:#fee2e2;color:#dc2626;">🗑️ 清空日志</button>
+        </div>
+      </div>
+      <p class="oplogHint">所有新增、编辑、删除操作都会被记录。撤销可以回退最近一次操作，重放会根据操作日志从初始状态重新执行所有操作。刷新页面后仍然有效。</p>
+      <div class="tableWrap"><table><thead><tr><th>时间</th><th>操作类型</th><th>内容</th><th></th></tr></thead><tbody id="oplogRows"></tbody></table></div>
+    </section>
+
     <section class="panel" id="compareViewSection" style="display:none;">
       <div class="panelHead">
         <h2>多地点对比分析</h2>
@@ -307,7 +322,14 @@ form.addEventListener('submit', (event) => {
   event.preventDefault();
   const data = Object.fromEntries(new FormData(form).entries());
   const item = { ...data, level: Number(data.level), wind: Number(data.wind), id: editingId || crypto.randomUUID() };
-  records = editingId ? records.map((record) => (record.id === editingId ? item : record)) : [item, ...records];
+  if (editingId) {
+    const before = records.find((r) => r.id === editingId);
+    logOperation('edit', before, item);
+    records = records.map((record) => (record.id === editingId ? item : record));
+  } else {
+    logOperation('add', null, item);
+    records = [item, ...records];
+  }
   editingId = null;
   form.reset();
   persist();
@@ -396,6 +418,15 @@ snapshotForm.addEventListener('submit', (event) => {
   render();
 });
 
+document.querySelector('#undoBtn').addEventListener('click', undoLastOperation);
+document.querySelector('#replayBtn').addEventListener('click', () => {
+  const count = replayAllOperations();
+  if (count > 0) {
+    alert(`✅ 已成功重放 ${count} 条操作`);
+  }
+});
+document.querySelector('#clearOpLogBtn').addEventListener('click', clearOpLog);
+
 document.querySelector('#applyCompareBtn').addEventListener('click', () => {
   compareStartDate = document.querySelector('#compareStartDate').value;
   compareEndDate = document.querySelector('#compareEndDate').value;
@@ -470,6 +501,121 @@ function restoreSnapshot(id) {
   cancelStationEditBtn.style.display = 'none';
   stationFormTitle.textContent = '新增站点';
   return true;
+}
+
+function loadOpLog() {
+  return JSON.parse(localStorage.getItem(opLogStorageKey) || '[]');
+}
+
+function persistOpLog(opLog) {
+  localStorage.setItem(opLogStorageKey, JSON.stringify(opLog));
+}
+
+function logOperation(type, before, after) {
+  const opLog = loadOpLog();
+  const entry = {
+    id: crypto.randomUUID(),
+    type,
+    timestamp: Date.now(),
+    before: before ? JSON.parse(JSON.stringify(before)) : null,
+    after: after ? JSON.parse(JSON.stringify(after)) : null
+  };
+  opLog.push(entry);
+  persistOpLog(opLog);
+}
+
+function undoLastOperation() {
+  const opLog = loadOpLog();
+  if (opLog.length === 0) {
+    alert('没有可撤销的操作');
+    return false;
+  }
+  const lastOp = opLog.pop();
+  persistOpLog(opLog);
+
+  switch (lastOp.type) {
+    case 'add':
+      records = records.filter((r) => r.id !== lastOp.after.id);
+      break;
+    case 'edit':
+      records = records.map((r) =>
+        r.id === lastOp.before.id ? lastOp.before : r
+      );
+      break;
+    case 'delete':
+      records = [...records, lastOp.before];
+      break;
+    default:
+      return false;
+  }
+
+  persist();
+  if (editingId) {
+    editingId = null;
+    form.reset();
+  }
+  render();
+  return true;
+}
+
+function replayAllOperations() {
+  const opLog = loadOpLog();
+  if (opLog.length === 0) {
+    alert('没有可重放的操作日志');
+    return 0;
+  }
+  records = load();
+  const recordMap = new Map(records.map((r) => [r.id, r]));
+
+  for (const op of opLog) {
+    switch (op.type) {
+      case 'add':
+        recordMap.set(op.after.id, JSON.parse(JSON.stringify(op.after)));
+        break;
+      case 'edit':
+        if (recordMap.has(op.before.id)) {
+          recordMap.set(op.after.id, JSON.parse(JSON.stringify(op.after)));
+        }
+        break;
+      case 'delete':
+        recordMap.delete(op.before.id);
+        break;
+    }
+  }
+
+  records = Array.from(recordMap.values());
+  persist();
+  render();
+  return opLog.length;
+}
+
+function clearOpLog() {
+  if (!confirm('确定要清空所有操作日志吗？清空后将无法再撤销之前的操作。')) {
+    return;
+  }
+  persistOpLog([]);
+  render();
+}
+
+function getOpTypeLabel(type) {
+  const map = { add: '新增', edit: '编辑', delete: '删除' };
+  return map[type] || type;
+}
+
+function getOpDescription(op) {
+  if (op.type === 'add') {
+    return `${op.after.place} ${op.after.date} ${op.after.time} 潮位${op.after.level}cm`;
+  } else if (op.type === 'edit') {
+    return `${op.after.place} ${op.after.date} ${op.after.time}`;
+  } else if (op.type === 'delete') {
+    return `${op.before.place} ${op.before.date} ${op.before.time} 潮位${op.before.level}cm`;
+  }
+  return '';
+}
+
+function formatOpTime(timestamp) {
+  const d = new Date(timestamp);
+  return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`;
 }
 
 function getRecordCountForStation(stationName) {
@@ -751,6 +897,48 @@ function renderSnapshots() {
   });
 }
 
+function renderOpLog() {
+  const opLog = loadOpLog().slice().reverse();
+  const countEl = document.querySelector('#oplogCount');
+  const rowsEl = document.querySelector('#oplogRows');
+  const undoBtn = document.querySelector('#undoBtn');
+  const replayBtn = document.querySelector('#replayBtn');
+  const clearBtn = document.querySelector('#clearOpLogBtn');
+
+  countEl.textContent = `${opLog.length} 条操作`;
+
+  const hasOps = opLog.length > 0;
+  undoBtn.disabled = !hasOps;
+  replayBtn.disabled = !hasOps;
+  clearBtn.disabled = !hasOps;
+  undoBtn.style.opacity = hasOps ? '1' : '0.5';
+  replayBtn.style.opacity = hasOps ? '1' : '0.5';
+  clearBtn.style.opacity = hasOps ? '1' : '0.5';
+  undoBtn.style.cursor = hasOps ? 'pointer' : 'not-allowed';
+  replayBtn.style.cursor = hasOps ? 'pointer' : 'not-allowed';
+  clearBtn.style.cursor = hasOps ? 'pointer' : 'not-allowed';
+
+  if (!hasOps) {
+    rowsEl.innerHTML = '<tr><td colspan="4"><p class="empty" style="text-align:center;padding:32px 16px;">暂无操作记录，新增、编辑或删除潮汐记录后将在此显示</p></td></tr>';
+    return;
+  }
+
+  const typeClassMap = {
+    add: 'opTypeAdd',
+    edit: 'opTypeEdit',
+    delete: 'opTypeDelete'
+  };
+
+  rowsEl.innerHTML = opLog.map((op, index) => `
+    <tr class="${index === 0 ? 'opRowLatest' : ''}">
+      <td>${formatOpTime(op.timestamp)}</td>
+      <td><span class="opTypeTag ${typeClassMap[op.type] || ''}">${getOpTypeLabel(op.type)}</span></td>
+      <td>${escapeHtml(getOpDescription(op))}</td>
+      <td>${index === 0 ? '<span class="latestBadge">可撤销</span>' : ''}</td>
+    </tr>
+  `).join('');
+}
+
 function render() {
   document.querySelectorAll('.viewBtn').forEach((btn) => {
     btn.classList.toggle('active', btn.dataset.view === currentView);
@@ -870,6 +1058,7 @@ function render() {
   drawLine('#weekChart', dailyAverage(scoped, 'level'), 'cm');
   drawBars('#placeChart', groupAverage(filtered, 'place', 'level'), 'cm');
   renderSnapshots();
+  renderOpLog();
 }
 
 function edit(id) {
@@ -882,6 +1071,10 @@ function edit(id) {
 }
 
 function remove(id) {
+  const before = records.find((record) => record.id === id);
+  if (before) {
+    logOperation('delete', before, null);
+  }
   records = records.filter((record) => record.id !== id);
   persist();
   render();
