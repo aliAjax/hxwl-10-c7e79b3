@@ -4,6 +4,7 @@ const storageKey = 'hxwl-10-tide-records';
 const stationStorageKey = 'hxwl-10-tide-stations';
 const snapshotStorageKey = 'hxwl-10-tide-snapshots';
 const opLogStorageKey = 'hxwl-10-tide-oplog';
+const weatherDictStorageKey = 'hxwl-10-weather-dict';
 
 const seed = [
   { id: crypto.randomUUID(), place: '东极青浜', date: '2026-06-03', time: '05:40', level: 128, windDir: '东北', wind: 13, weather: '多云', note: '浪面平稳' },
@@ -24,10 +25,25 @@ const stationSeed = [
   { id: crypto.randomUUID(), name: '象山石浦', seaArea: '东海', longitude: 121.95, latitude: 29.2167, note: '石浦渔港' }
 ];
 
+const weatherDictSeed = [
+  { id: crypto.randomUUID(), name: '晴', icon: '☀️' },
+  { id: crypto.randomUUID(), name: '多云', icon: '⛅' },
+  { id: crypto.randomUUID(), name: '阴', icon: '☁️' },
+  { id: crypto.randomUUID(), name: '小雨', icon: '🌧️' },
+  { id: crypto.randomUUID(), name: '中雨', icon: '🌧️' },
+  { id: crypto.randomUUID(), name: '大雨', icon: '🌧️' },
+  { id: crypto.randomUUID(), name: '雷阵雨', icon: '⛈️' },
+  { id: crypto.randomUUID(), name: '雪', icon: '❄️' },
+  { id: crypto.randomUUID(), name: '雾', icon: '🌫️' },
+  { id: crypto.randomUUID(), name: '大风', icon: '💨' }
+];
+
 let records = load();
 let stations = loadStations();
+let weatherDict = loadWeatherDict();
 let editingId = null;
 let editingStationId = null;
+let editingWeatherDictId = null;
 let pendingImportData = null;
 let currentView = 'list';
 let calendarYear = new Date().getFullYear();
@@ -84,8 +100,9 @@ app.innerHTML = `
         </div>
         <div class="pair">
           <input name="windDir" placeholder="风向" required />
-          <input name="weather" placeholder="天气" required />
+          <input name="weather" placeholder="天气 (可从词典选择)" list="weatherDictList" required />
         </div>
+        <datalist id="weatherDictList"></datalist>
         <textarea name="note" placeholder="备注"></textarea>
         <button class="primary" type="submit">保存记录</button>
       </form>
@@ -181,6 +198,32 @@ app.innerHTML = `
         </form>
         <div class="stationList">
           <div class="tableWrap"><table><thead><tr><th>地点名称</th><th>所属海域</th><th>经纬度</th><th>备注</th><th>关联记录</th><th></th></tr></thead><tbody id="stationRows"></tbody></table></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" id="weatherDictSection">
+      <div class="panelHead">
+        <h2>天气词典管理</h2>
+        <div class="weatherDictHeadActions">
+          <span id="weatherDictCount" class="countBadge"></span>
+          <button class="ghost" id="resetWeatherDictBtn" style="background:#fef3c7;color:#92400e;">↩️ 恢复默认</button>
+        </div>
+      </div>
+      <div class="weatherDictLayout">
+        <form class="panel form weatherDictForm" id="weatherDictForm">
+          <h3 id="weatherDictFormTitle">新增天气</h3>
+          <div class="pair">
+            <input name="name" placeholder="天气名称" required />
+            <input name="icon" placeholder="图标emoji" required />
+          </div>
+          <div class="formActions">
+            <button type="button" class="ghost" id="cancelWeatherDictEdit" style="display:none;">取消</button>
+            <button class="primary" type="submit">保存</button>
+          </div>
+        </form>
+        <div class="weatherDictList">
+          <div class="tableWrap"><table><thead><tr><th>图标</th><th>天气名称</th><th>关联记录</th><th></th></tr></thead><tbody id="weatherDictRows"></tbody></table></div>
         </div>
       </div>
     </section>
@@ -331,6 +374,9 @@ const placeFilter = document.querySelector('#placeFilter');
 const stationForm = document.querySelector('#stationForm');
 const cancelStationEditBtn = document.querySelector('#cancelStationEdit');
 const stationFormTitle = document.querySelector('#stationFormTitle');
+const weatherDictForm = document.querySelector('#weatherDictForm');
+const cancelWeatherDictEditBtn = document.querySelector('#cancelWeatherDictEdit');
+const weatherDictFormTitle = document.querySelector('#weatherDictFormTitle');
 const snapshotForm = document.querySelector('#snapshotForm');
 
 form.addEventListener('submit', (event) => {
@@ -434,6 +480,38 @@ cancelStationEditBtn.addEventListener('click', () => {
   stationFormTitle.textContent = '新增站点';
 });
 
+weatherDictForm.addEventListener('submit', (event) => {
+  event.preventDefault();
+  const data = Object.fromEntries(new FormData(weatherDictForm).entries());
+  const weatherItem = {
+    ...data,
+    id: editingWeatherDictId || crypto.randomUUID()
+  };
+  weatherDict = editingWeatherDictId
+    ? weatherDict.map((w) => (w.id === editingWeatherDictId ? weatherItem : w))
+    : [weatherItem, ...weatherDict];
+  editingWeatherDictId = null;
+  weatherDictForm.reset();
+  cancelWeatherDictEditBtn.style.display = 'none';
+  weatherDictFormTitle.textContent = '新增天气';
+  persistWeatherDict();
+  render();
+});
+
+cancelWeatherDictEditBtn.addEventListener('click', () => {
+  editingWeatherDictId = null;
+  weatherDictForm.reset();
+  cancelWeatherDictEditBtn.style.display = 'none';
+  weatherDictFormTitle.textContent = '新增天气';
+});
+
+document.querySelector('#resetWeatherDictBtn').addEventListener('click', () => {
+  if (confirm('确定要恢复默认天气词典吗？您自定义的天气词条将被替换为默认词条。')) {
+    resetWeatherDict();
+    render();
+  }
+});
+
 snapshotForm.addEventListener('submit', (event) => {
   event.preventDefault();
   const formData = new FormData(snapshotForm);
@@ -490,6 +568,28 @@ function persistStations() {
   localStorage.setItem(stationStorageKey, JSON.stringify(stations));
 }
 
+function loadWeatherDict() {
+  return JSON.parse(localStorage.getItem(weatherDictStorageKey) || 'null') || weatherDictSeed;
+}
+
+function persistWeatherDict() {
+  localStorage.setItem(weatherDictStorageKey, JSON.stringify(weatherDict));
+}
+
+function resetWeatherDict() {
+  weatherDict = weatherDictSeed.map(item => ({ ...item, id: crypto.randomUUID() }));
+  persistWeatherDict();
+}
+
+function getWeatherDictIcon(name) {
+  const item = weatherDict.find(w => w.name === name);
+  return item ? item.icon : '🌤️';
+}
+
+function getRecordCountForWeather(weatherName) {
+  return records.filter(r => r.weather === weatherName).length;
+}
+
 function loadSnapshots() {
   return JSON.parse(localStorage.getItem(snapshotStorageKey) || '[]');
 }
@@ -506,8 +606,10 @@ function saveSnapshot(name) {
     createdAt: new Date().toISOString(),
     records: JSON.parse(JSON.stringify(records)),
     stations: JSON.parse(JSON.stringify(stations)),
+    weatherDict: JSON.parse(JSON.stringify(weatherDict)),
     recordCount: records.length,
-    stationCount: stations.length
+    stationCount: stations.length,
+    weatherDictCount: weatherDict.length
   };
   snapshots.unshift(snapshot);
   persistSnapshots(snapshots);
@@ -525,14 +627,22 @@ function restoreSnapshot(id) {
   if (!snapshot) return false;
   records = JSON.parse(JSON.stringify(snapshot.records));
   stations = JSON.parse(JSON.stringify(snapshot.stations));
+  if (snapshot.weatherDict) {
+    weatherDict = JSON.parse(JSON.stringify(snapshot.weatherDict));
+  }
   persist();
   persistStations();
+  persistWeatherDict();
   editingId = null;
   editingStationId = null;
+  editingWeatherDictId = null;
   form.reset();
   stationForm.reset();
+  weatherDictForm.reset();
   cancelStationEditBtn.style.display = 'none';
   stationFormTitle.textContent = '新增站点';
+  cancelWeatherDictEditBtn.style.display = 'none';
+  weatherDictFormTitle.textContent = '新增天气';
   return true;
 }
 
@@ -915,6 +1025,40 @@ function removeStation(id) {
   render();
 }
 
+function editWeatherDict(id) {
+  const item = weatherDict.find((w) => w.id === id);
+  editingWeatherDictId = id;
+  weatherDictFormTitle.textContent = '编辑天气';
+  cancelWeatherDictEditBtn.style.display = 'inline-block';
+  Object.entries(item).forEach(([key, value]) => {
+    if (weatherDictForm.elements[key]) weatherDictForm.elements[key].value = value;
+  });
+  weatherDictForm.elements.name.focus();
+}
+
+function removeWeatherDict(id) {
+  const item = weatherDict.find((w) => w.id === id);
+  const recordCount = getRecordCountForWeather(item.name);
+  if (recordCount > 0) {
+    if (!confirm(`该天气"${item.name}"关联了 ${recordCount} 条潮汐记录。删除后历史记录中的天气名称仍将保留，但无法再从词典中选择该天气。确定要删除吗？`)) {
+      return;
+    }
+  } else {
+    if (!confirm(`确定要删除天气"${item.name}"吗？`)) {
+      return;
+    }
+  }
+  weatherDict = weatherDict.filter((w) => w.id !== id);
+  persistWeatherDict();
+  if (editingWeatherDictId === id) {
+    editingWeatherDictId = null;
+    weatherDictForm.reset();
+    cancelWeatherDictEditBtn.style.display = 'none';
+    weatherDictFormTitle.textContent = '新增天气';
+  }
+  render();
+}
+
 function aggregateByDate(records) {
   const map = new Map();
   records.forEach((record) => {
@@ -950,18 +1094,7 @@ function getPrimaryWeather(dayRecords) {
 }
 
 function getWeatherIcon(weather) {
-  const map = {
-    '晴': '☀️',
-    '多云': '⛅',
-    '阴': '☁️',
-    '小雨': '🌧️',
-    '中雨': '🌧️',
-    '大雨': '🌧️',
-    '雷阵雨': '⛈️',
-    '雪': '❄️',
-    '雾': '🌫️'
-  };
-  return map[weather] || '🌤️';
+  return getWeatherDictIcon(weather);
 }
 
 function selectCalendarDate(dateStr) {
@@ -1283,6 +1416,34 @@ function render() {
   document.querySelectorAll('[data-del-station]').forEach((button) =>
     button.addEventListener('click', () => removeStation(button.dataset.delStation))
   );
+
+  document.querySelector('#weatherDictCount').textContent = `${weatherDict.length} 个天气`;
+  document.querySelector('#weatherDictRows').innerHTML = weatherDict
+    .map((item) => {
+      const recordCount = getRecordCountForWeather(item.name);
+      return `<tr>
+        <td style="font-size: 24px; text-align: center;">${item.icon}</td>
+        <td><strong>${escapeHtml(item.name)}</strong></td>
+        <td><span class="recordCount">${recordCount} 条</span></td>
+        <td>
+          <button data-edit-weather="${item.id}">编辑</button>
+          <button data-del-weather="${item.id}">删除</button>
+        </td>
+      </tr>`;
+    })
+    .join('');
+  document.querySelectorAll('[data-edit-weather]').forEach((button) =>
+    button.addEventListener('click', () => editWeatherDict(button.dataset.editWeather))
+  );
+  document.querySelectorAll('[data-del-weather]').forEach((button) =>
+    button.addEventListener('click', () => removeWeatherDict(button.dataset.delWeather))
+  );
+
+  const weatherDatalist = document.querySelector('#weatherDictList');
+  if (weatherDatalist) {
+    weatherDatalist.innerHTML = weatherDict.map((item) => `<option value="${escapeHtml(item.name)}">${item.icon}</option>`).join('');
+  }
+
   let filtered = records.filter((record) => [record.place, record.weather, record.note].join(' ').includes(search.value.trim()));
   if (anomalyFilterEnabled) {
     filtered = filtered.filter(record => anomalies.has(record.id));

@@ -287,12 +287,48 @@ td button {
   min-width: 640px;
 }
 
+.weatherDictHeadActions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.weatherDictLayout {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 18px;
+  margin-top: 8px;
+}
+
+.weatherDictForm {
+  align-self: start;
+  display: grid;
+  gap: 12px;
+}
+
+.weatherDictForm h3 {
+  margin: 0 0 4px 0;
+  font-size: 16px;
+  color: #0d9488;
+}
+
+.weatherDictList table {
+  min-width: 480px;
+}
+
+.weatherDictList td:first-child {
+  width: 60px;
+  text-align: center;
+}
+
 @media (max-width: 900px) {
-  .stationLayout {
+  .stationLayout,
+  .weatherDictLayout {
     display: block;
   }
 
-  .stationForm {
+  .stationForm,
+  .weatherDictForm {
     margin-top: 14px;
   }
   .hero,
