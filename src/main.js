@@ -1506,10 +1506,13 @@ function renderCompareSummary(stats, selectedPlaces) {
   const overlapping = getOverlappingDateRange(selectedPlaces);
   const effectiveStart = compareStartDate && overlapping ? (compareStartDate > overlapping.start ? compareStartDate : overlapping.start) : (overlapping ? overlapping.start : '');
   const effectiveEnd = compareEndDate && overlapping ? (compareEndDate < overlapping.end ? compareEndDate : overlapping.end) : (overlapping ? overlapping.end : '');
+  const hasEffectiveOverlap = Boolean(overlapping && effectiveStart && effectiveEnd && effectiveStart <= effectiveEnd);
   
   let issues = [];
   if (!overlapping) {
     issues.push({ type: 'error', text: '所选地点没有共同的观测日期' });
+  } else if (!hasEffectiveOverlap) {
+    issues.push({ type: 'error', text: '所选日期范围与共同观测期不重叠' });
   } else {
     if (compareStartDate && compareStartDate < overlapping.start) {
       issues.push({ type: 'warning', text: `部分地点在 ${compareStartDate} 至 ${overlapping.start} 期间无数据` });
@@ -1588,13 +1591,13 @@ function renderCompareSummary(stats, selectedPlaces) {
         `;
       }).join('')}
     </div>
-    ${overlapping ? `
+    ${hasEffectiveOverlap ? `
       <div class="compareDateInfo">
-        <strong>共同观测期：</strong>${effectiveStart || overlapping.start} 至 ${effectiveEnd || overlapping.end}
+        <strong>共同观测期：</strong>${effectiveStart} 至 ${effectiveEnd}
       </div>
     ` : `
       <div class="compareDateInfo" style="color: #dc2626;">
-        <strong>无可重叠日期</strong> — 各地点观测期不交叉
+        <strong>无可重叠日期</strong> — ${overlapping ? '所选日期范围与共同观测期不重叠' : '各地点观测期不交叉'}
       </div>
     `}
     ${issuesHtml}
