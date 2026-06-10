@@ -1225,13 +1225,18 @@ function render() {
   anomalyFilterBtn.innerHTML = anomalyFilterEnabled ? '✅ 显示全部' : `⚠️ 只看异常 (${anomalyCount})`;
 
   const selectedPlace = placeFilter.value;
-  const places = [...new Set(records.map((record) => record.place))].sort();
-  placeFilter.innerHTML = `<option value="">全部地点</option>${places.map((place) => `<option>${place}</option>`).join('')}`;
-  placeFilter.value = selectedPlace && places.includes(selectedPlace) ? selectedPlace : '';
+  const stationNames = stations.map((s) => s.name).sort();
+  const recordPlaces = [...new Set(records.map((record) => record.place))].sort();
+  const allPlaces = [...new Set([...stationNames, ...recordPlaces])].sort();
+  placeFilter.innerHTML = `<option value="">全部地点</option>${allPlaces.map((place) => {
+    const isStation = stationNames.includes(place);
+    const recordCount = getRecordCountForStation(place);
+    return `<option value="${place}">${place}${isStation ? '' : ' (历史)'}${recordCount > 0 ? ` (${recordCount}条)` : ' (0条)'}</option>`;
+  }).join('')}`;
+  placeFilter.value = selectedPlace && allPlaces.includes(selectedPlace) ? selectedPlace : '';
 
   const placeSelect = form.elements.place;
   const currentPlaceValue = placeSelect.value;
-  const stationNames = stations.map((s) => s.name).sort();
   
   const editingRecord = editingId ? records.find((r) => r.id === editingId) : null;
   const isEditingHistoricalPlace = editingRecord && !stationNames.includes(editingRecord.place);
