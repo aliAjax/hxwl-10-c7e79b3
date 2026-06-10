@@ -79,7 +79,11 @@ app.innerHTML = `
       </div>
       <div class="actions">
         <button class="ghost" id="importSample">载入示例</button>
-        <label class="ghost file">导入CSV<input id="csvInput" type="file" accept=".csv,text/csv" /></label>
+        <div class="csvImportGroup">
+          <label class="ghost file">导入CSV<input id="csvInput" type="file" accept=".csv,text/csv" /></label>
+          <button class="ghost" id="downloadTemplate">📥 模板下载</button>
+          <button class="ghost" id="showFieldHelp">📖 字段说明</button>
+        </div>
         <button class="ghost" id="exportCsv">导出CSV</button>
       </div>
     </section>
@@ -365,6 +369,98 @@ app.innerHTML = `
     </div>
   </div>
 
+  <div class="fieldHelpBackdrop" id="fieldHelpBackdrop" style="display:none;">
+    <div class="fieldHelpPanel">
+      <div class="fieldHelpHead">
+        <h2>CSV导入字段说明</h2>
+        <button class="modalClose" id="closeFieldHelp">&times;</button>
+      </div>
+      <div class="fieldHelpBody">
+        <div class="fieldHelpIntro">
+          <p>导入CSV时，系统会自动识别以下中文或英文列名。请确保您的CSV文件包含所有<strong>必填字段</strong>，列名完全一致。</p>
+          <p class="fieldHelpTip">💡 建议先下载模板，在模板基础上填写数据，可避免列名或格式错误。</p>
+        </div>
+        <table class="fieldHelpTable">
+          <thead>
+            <tr><th>字段名称</th><th>可选列名</th><th>必填</th><th>格式要求</th><th>示例</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="fieldTag required">地点</span></td>
+              <td>地点、站点、place</td>
+              <td>是</td>
+              <td>不能为空，需为已有站点名称或自定义地点</td>
+              <td>东极青浜</td>
+            </tr>
+            <tr>
+              <td><span class="fieldTag required">日期</span></td>
+              <td>日期、date</td>
+              <td>是</td>
+              <td>YYYY-MM-DD格式，必须为合法日历日期（含闰年校验）</td>
+              <td>2026-06-10</td>
+            </tr>
+            <tr>
+              <td><span class="fieldTag required">时间</span></td>
+              <td>时间、time</td>
+              <td>是</td>
+              <td>建议HH:MM格式</td>
+              <td>06:30</td>
+            </tr>
+            <tr>
+              <td><span class="fieldTag required">潮位</span></td>
+              <td>潮位、水位、level</td>
+              <td>是</td>
+              <td>必须为有效数字，单位cm</td>
+              <td>156</td>
+            </tr>
+            <tr>
+              <td><span class="fieldTag required">风向</span></td>
+              <td>风向、windDir</td>
+              <td>是</td>
+              <td>文本，常见如东北、东南、南、西南等</td>
+              <td>东北</td>
+            </tr>
+            <tr>
+              <td><span class="fieldTag required">风速</span></td>
+              <td>风速、wind</td>
+              <td>是</td>
+              <td>必须为有效数字，单位km/h</td>
+              <td>12</td>
+            </tr>
+            <tr>
+              <td><span class="fieldTag required">天气</span></td>
+              <td>天气、weather</td>
+              <td>是</td>
+              <td>文本，建议使用天气词典中的名称</td>
+              <td>晴</td>
+            </tr>
+            <tr>
+              <td><span class="fieldTag optional">备注</span></td>
+              <td>备注、说明、note</td>
+              <td>否</td>
+              <td>文本，可为空</td>
+              <td>浪面平稳</td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="fieldHelpNotes">
+          <h3>⚠️ 常见错误</h3>
+          <ul>
+            <li><strong>日期格式错误</strong>：必须为YYYY-MM-DD，如2026-06-10，不支持2026/06/10或06-10-2026</li>
+            <li><strong>非法日历日期</strong>：如6月31日、2月30日、非闰年2月29日等会被校验拒绝</li>
+            <li><strong>潮位或风速非数字</strong>：如填入"abc"或留空均会报错</li>
+            <li><strong>地点为空</strong>：地点列不能留空</li>
+            <li><strong>列名不匹配</strong>：列名必须与上方"可选列名"完全一致（不区分大小写）</li>
+          </ul>
+        </div>
+      </div>
+      <div class="fieldHelpFoot">
+        <button class="ghost" id="closeFieldHelpBtn">关闭</button>
+        <button class="primary" id="downloadTemplateFromHelp">📥 下载导入模板</button>
+      </div>
+    </div>
+  </div>
+
   <div class="chartTooltip" id="chartTooltip"></div>
 `;
 
@@ -426,6 +522,25 @@ document.querySelector('#cancelCsvImport').addEventListener('click', closeCsvMod
 document.querySelector('#confirmCsvImport').addEventListener('click', confirmCsvImport);
 document.querySelector('#csvModal').addEventListener('click', (e) => {
   if (e.target.id === 'csvModal') closeCsvModal();
+});
+
+document.querySelector('#downloadTemplate').addEventListener('click', downloadCsvTemplate);
+document.querySelector('#showFieldHelp').addEventListener('click', () => {
+  document.querySelector('#fieldHelpBackdrop').style.display = 'flex';
+});
+document.querySelector('#closeFieldHelp').addEventListener('click', () => {
+  document.querySelector('#fieldHelpBackdrop').style.display = 'none';
+});
+document.querySelector('#closeFieldHelpBtn').addEventListener('click', () => {
+  document.querySelector('#fieldHelpBackdrop').style.display = 'none';
+});
+document.querySelector('#downloadTemplateFromHelp').addEventListener('click', () => {
+  downloadCsvTemplate();
+});
+document.querySelector('#fieldHelpBackdrop').addEventListener('click', (e) => {
+  if (e.target.id === 'fieldHelpBackdrop') {
+    document.querySelector('#fieldHelpBackdrop').style.display = 'none';
+  }
 });
 
 document.querySelectorAll('.viewBtn').forEach((btn) => {
@@ -1614,7 +1729,9 @@ function importCsv(event) {
   if (!file) return;
   const csvInput = document.querySelector('#csvInput');
   file.text().then((text) => {
-    const lines = text.trim().split(/\n+/);
+    const cleaned = text.replace(/^\uFEFF/, '');
+    const allLines = cleaned.trim().split(/\n+/);
+    const lines = allLines.filter(line => !line.trim().startsWith('#') && line.trim() !== '');
     if (lines.length < 2) {
       showImportError('CSV文件为空或格式不正确，至少需要包含表头和一行数据。');
       csvInput.value = '';
@@ -1770,6 +1887,32 @@ function downloadCsv(data) {
   const csv = ['place,date,time,level,windDir,wind,weather,note', ...data.map((record) => [record.place, record.date, record.time, record.level, record.windDir, record.wind, record.weather, record.note].join(','))].join('\n');
   const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
   const a = Object.assign(document.createElement('a'), { href: url, download: 'tide-records.csv' });
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function downloadCsvTemplate() {
+  const lines = [
+    '# 潮汐观测数据导入模板 - 请在下方填写您的数据',
+    '# ================================================',
+    '# 格式说明：',
+    '#   1. 以 # 开头的行为注释行，导入时会自动忽略',
+    '#   2. 请从第11行（表头行）开始填写数据，不要修改表头文字',
+    '#   3. 日期格式必须为 YYYY-MM-DD（如 2026-06-10），不支持 2026/06/10 或 06-10-2026',
+    '#   4. 时间建议使用 HH:MM 格式（如 06:30）',
+    '#   5. 潮位和风速必须为有效数字（整数或小数均可）',
+    '#   6. 必填字段：地点、日期、时间、潮位、风向、风速、天气；备注为选填',
+    '#   7. 列名支持中英文：地点/站点/place、日期/date、时间/time、潮位/水位/level、风向/windDir、风速/wind、天气/weather、备注/说明/note',
+    '#   8. 非法日历日期（如 6月31日、2月30日、非闰年2月29日）会被拒绝导入',
+    '# ',
+    '# 示例数据（请删除示例行后填写您的真实数据）：',
+    '地点,日期,时间,潮位,风向,风速,天气,备注',
+    '东极青浜,2026-06-10,06:30,156,东北,12,晴,浪面平稳',
+    '嵊泗基湖,2026-06-10,12:15,312,东南,18,多云,午前涨潮'
+  ];
+  const csv = lines.join('\n');
+  const url = URL.createObjectURL(new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' }));
+  const a = Object.assign(document.createElement('a'), { href: url, download: 'tide-import-template.csv' });
   a.click();
   URL.revokeObjectURL(url);
 }

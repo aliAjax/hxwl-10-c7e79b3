@@ -1770,6 +1770,198 @@ svg path:hover {
   opacity: 0.5;
 }
 
+.csvImportGroup {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.fieldHelpBackdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(12, 58, 78, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+}
+
+.fieldHelpPanel {
+  background: white;
+  border-radius: 12px;
+  width: 100%;
+  max-width: 860px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(12, 58, 78, 0.3);
+}
+
+.fieldHelpHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px;
+  border-bottom: 1px solid #e0efec;
+  flex-shrink: 0;
+}
+
+.fieldHelpHead h2 {
+  margin: 0;
+  color: #0d9488;
+  font-size: 20px;
+}
+
+.fieldHelpBody {
+  padding: 24px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.fieldHelpIntro {
+  margin-bottom: 20px;
+  padding: 14px 18px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+}
+
+.fieldHelpIntro p {
+  margin: 0 0 8px 0;
+  font-size: 14px;
+  color: #1e40af;
+  line-height: 1.6;
+}
+
+.fieldHelpIntro p:last-child {
+  margin-bottom: 0;
+}
+
+.fieldHelpTip {
+  font-weight: 500;
+  color: #0d9488 !important;
+  background: #d9f3ed;
+  margin-top: 10px !important;
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid #a7d8cf;
+}
+
+.fieldHelpTable {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 100%;
+  font-size: 13px;
+  margin-bottom: 20px;
+}
+
+.fieldHelpTable th {
+  background: #d9f3ed;
+  color: #0d9488;
+  font-weight: 600;
+  padding: 10px 12px;
+  text-align: left;
+  border-bottom: 2px solid #a7d8cf;
+}
+
+.fieldHelpTable td {
+  padding: 10px 12px;
+  border-bottom: 1px solid #e0efec;
+  vertical-align: top;
+  line-height: 1.5;
+}
+
+.fieldHelpTable tbody tr:hover {
+  background: #f0faf8;
+}
+
+.fieldTag {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.fieldTag.required {
+  background: #d9f3ed;
+  color: #0d9488;
+}
+
+.fieldTag.optional {
+  background: #f3f4f6;
+  color: #6b7280;
+}
+
+.fieldHelpNotes {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  padding: 16px 20px;
+}
+
+.fieldHelpNotes h3 {
+  margin: 0 0 10px 0;
+  font-size: 15px;
+  color: #dc2626;
+}
+
+.fieldHelpNotes ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.fieldHelpNotes li {
+  font-size: 13px;
+  color: #557084;
+  line-height: 1.8;
+}
+
+.fieldHelpNotes li strong {
+  color: #17324d;
+}
+
+.fieldHelpFoot {
+  display: flex;
+  gap: 12px;
+  padding: 16px 24px;
+  border-top: 1px solid #e0efec;
+  justify-content: flex-end;
+  flex-shrink: 0;
+}
+
+.fieldHelpFoot .ghost {
+  background: #e4f5f1;
+}
+
+.fieldHelpFoot .primary {
+  width: auto;
+  padding: 10px 24px;
+}
+
+@media (max-width: 900px) {
+  .csvImportGroup {
+    flex-wrap: wrap;
+  }
+
+  .fieldHelpPanel {
+    margin: 20px;
+    max-height: calc(100vh - 40px);
+  }
+
+  .fieldHelpTable {
+    font-size: 12px;
+  }
+
+  .fieldHelpTable th,
+  .fieldHelpTable td {
+    padding: 8px 6px;
+  }
+}
+
 @media (max-width: 900px) {
   .mapLayout {
     grid-template-columns: 1fr;
