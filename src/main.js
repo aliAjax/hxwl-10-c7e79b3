@@ -109,8 +109,8 @@ app.innerHTML = `
           <button class="viewBtn" data-view="calendar">📅 观测日历</button>
           <button class="viewBtn" data-view="compare">📊 多地点对比</button>
           <button class="viewBtn" data-view="report">📄 报告生成</button>
-          <button class="viewBtn" data-view="goals">🎯 目标看板</button>
-          <button class="viewBtn" data-view="practice">⏱️ 练习中心</button>
+          <button class="viewBtn" data-view="goals">🎯 观测目标</button>
+          <button class="viewBtn" data-view="practice">⏱️ 观测中心</button>
         </div>
       </div>
       <div class="actions">
@@ -471,18 +471,18 @@ app.innerHTML = `
 
     <section class="panel" id="goalsViewSection" style="display:none;">
       <div class="goalsLayout">
-        <div class="goalsLeftCol">
+        <div class="goalLeftCol">
           <form class="panel form goalForm" id="goalForm">
             <div class="panelHead">
-              <h3 id="goalFormTitle">🎯 新增练习目标</h3>
+              <h3 id="goalFormTitle">🎯 新增观测目标</h3>
             </div>
-            <input name="title" placeholder="目标名称（如：熟练掌握C大调音阶）" required />
+            <input name="title" placeholder="目标名称（如：6月潮位观测质量达标）" required />
             <div class="pair">
               <div>
                 <label class="fieldLabel">目标类型</label>
                 <select name="goalType" id="goalType">
-                  <option value="bpm">BPM 目标</option>
-                  <option value="duration">练习时长目标</option>
+                  <option value="bpm">质量分目标</option>
+                  <option value="duration">观测时长目标</option>
                   <option value="combo">综合目标</option>
                 </select>
               </div>
@@ -497,17 +497,17 @@ app.innerHTML = `
             </div>
             <div class="pair">
               <div>
-                <label class="fieldLabel">目标 BPM</label>
-                <input name="targetBPM" type="number" min="20" max="300" step="1" placeholder="例如: 120" />
+                <label class="fieldLabel">目标质量分</label>
+                <input name="targetBPM" type="number" min="20" max="100" step="1" placeholder="例如: 90" />
               </div>
               <div>
-                <label class="fieldLabel">起始 BPM</label>
-                <input name="startBPM" type="number" min="20" max="300" step="1" placeholder="例如: 60" />
+                <label class="fieldLabel">起始质量分</label>
+                <input name="startBPM" type="number" min="20" max="100" step="1" placeholder="例如: 60" />
               </div>
             </div>
             <div class="pair">
               <div>
-                <label class="fieldLabel">周练习时长（分钟）</label>
+                <label class="fieldLabel">周观测时长（分钟）</label>
                 <input name="weeklyMinutes" type="number" min="1" step="1" placeholder="例如: 300" />
               </div>
               <div>
@@ -515,7 +515,7 @@ app.innerHTML = `
                 <input name="deadline" type="date" />
               </div>
             </div>
-            <textarea name="description" placeholder="目标描述、练习要点..."></textarea>
+            <textarea name="description" placeholder="目标描述、观测要点..."></textarea>
             <div class="formActions">
               <button type="button" class="ghost" id="cancelGoalEdit" style="display:none;">取消</button>
               <button class="primary" type="submit">💾 保存目标</button>
@@ -524,17 +524,17 @@ app.innerHTML = `
 
           <div class="panel" id="todayPlanPanel">
             <div class="panelHead">
-              <h3>📅 今日计划</h3>
+              <h3>📅 今日观测计划</h3>
               <span id="todayDateBadge" class="countBadge"></span>
             </div>
             <div id="todayPlanContent"></div>
           </div>
         </div>
 
-        <div class="goalsRightCol">
+        <div class="goalRightCol">
           <div class="panel">
             <div class="panelHead">
-              <h2>🎯 目标看板</h2>
+              <h2>🎯 观测目标看板</h2>
               <div class="goalStatsRow" id="goalStatsRow"></div>
             </div>
             <div class="goalFilterTabs">
@@ -554,33 +554,33 @@ app.innerHTML = `
         <div class="practiceLeftCol">
           <div class="panel practiceTimerPanel">
             <div class="panelHead">
-              <h2>⏱️ 计时练习</h2>
+              <h2>⏱️ 现场观测计时</h2>
               <span id="practiceStatusBadge" class="countBadge" style="background:#e0f2fe;color:#075985;">准备中</span>
             </div>
 
             <div class="practiceSelectGoal">
-              <label class="fieldLabel">选择练习目标</label>
+              <label class="fieldLabel">选择观测目标</label>
               <select id="practiceGoalSelect">
-                <option value="">-- 无目标自由练习 --</option>
+                <option value="">-- 无目标自由观测 --</option>
               </select>
             </div>
 
             <div class="practiceBPMInputs">
               <div class="pair">
                 <div>
-                  <label class="fieldLabel">练习 BPM</label>
+                  <label class="fieldLabel">目标质量分</label>
                   <div class="bpmInputWrap">
                     <button class="bpmAdjustBtn" id="bpmMinus10">-10</button>
                     <button class="bpmAdjustBtn" id="bpmMinus5">-5</button>
-                    <input id="practiceBPMInput" type="number" min="20" max="300" value="60" />
+                    <input id="practiceBPMInput" type="number" min="20" max="100" value="60" />
                     <button class="bpmAdjustBtn" id="bpmPlus5">+5</button>
                     <button class="bpmAdjustBtn" id="bpmPlus10">+10</button>
                   </div>
                 </div>
                 <div>
-                  <label class="fieldLabel">节拍器</label>
+                  <label class="fieldLabel">定时提醒</label>
                   <div class="metronomeControl">
-                    <button class="ghost" id="metronomeToggleBtn">🔊 开启节拍器</button>
+                    <button class="ghost" id="metronomeToggleBtn">🔔 开启提醒</button>
                   </div>
                 </div>
               </div>
@@ -589,31 +589,31 @@ app.innerHTML = `
             <div class="timerDisplay">
               <div class="timerDigits" id="timerDigits">00:00:00</div>
               <div class="timerSubInfo">
-                <span id="timerBPMDisplay">BPM: 60</span>
+                <span id="timerBPMDisplay">质量分: 60</span>
                 <span id="timerGoalDisplay">未绑定目标</span>
               </div>
             </div>
 
             <div class="beatRecorder">
               <div class="panelHead" style="padding:0;margin-bottom:12px;">
-                <h3 style="margin-bottom:0;">🥁 击拍检测（记录瞬时BPM）</h3>
+                <h3 style="margin-bottom:0;">📊 质量评估（记录瞬时打分）</h3>
               </div>
-              <p class="practiceHint">按 TAP 键随节拍点击，系统会自动计算您的实际 BPM</p>
+              <p class="practiceHint">按 TAP 键对每次观测质量快速打分，系统会自动计算平均质量分</p>
               <div class="tapArea">
-                <button class="tapBtn" id="tapBtn">TAP 击拍</button>
+                <button class="tapBtn" id="tapBtn">TAP 打分</button>
                 <div class="tapResult">
                   <div class="tapBPM" id="tapBPM">--</div>
-                  <div class="tapSub">BPM</div>
+                  <div class="tapSub">分</div>
                 </div>
               </div>
               <div class="tapStats">
-                <span>击拍次数：<strong id="tapCount">0</strong></span>
-                <span>平均BPM：<strong id="tapAvgBPM">--</strong></span>
+                <span>评估次数：<strong id="tapCount">0</strong></span>
+                <span>平均质量分：<strong id="tapAvgBPM">--</strong></span>
               </div>
             </div>
 
             <div class="practiceControls">
-              <button class="primary practiceStartBtn" id="practiceStartBtn">▶️ 开始练习</button>
+              <button class="primary practiceStartBtn" id="practiceStartBtn">▶️ 开始观测</button>
               <button class="ghost practicePauseBtn" id="practicePauseBtn" disabled>⏸️ 暂停</button>
               <button class="ghost practiceStopBtn" id="practiceStopBtn" disabled style="background:#fee2e2;color:#dc2626;">⏹️ 结束</button>
             </div>
@@ -621,7 +621,7 @@ app.innerHTML = `
 
           <div class="panel" id="todayPlanInPractice">
             <div class="panelHead">
-              <h3>📅 今日计划建议</h3>
+              <h3>📅 今日观测计划</h3>
               <span id="planDateBadge2" class="countBadge"></span>
             </div>
             <div id="todayPlanInPracticeContent"></div>
@@ -631,7 +631,7 @@ app.innerHTML = `
         <div class="practiceRightCol">
           <div class="panel">
             <div class="panelHead">
-              <h2>📊 练习记录</h2>
+              <h2>📊 观测记录</h2>
               <span id="practiceRecordCount" class="countBadge"></span>
             </div>
             <div class="practiceStats" id="practiceStatsSummary"></div>
@@ -5260,9 +5260,9 @@ function generateTodayPlanSuggestions() {
         urgency,
         title: `🎯 目标临近截止：${goal.title}`,
         message: daysUntil === 0
-          ? `今天是截止日期！距离目标BPM还差 ${Math.max(0, progress.targetBPM - progress.maxBPMReached)} BPM，进度 ${progress.overallProgress}%`
-          : `还有 ${daysUntil} 天截止，当前进度 ${progress.overallProgress}%，建议今日加强练习`,
-        action: { label: '立即去练习', view: 'practice', goalId: goal.id }
+          ? `今天是截止日期！距离目标质量分还差 ${Math.max(0, progress.targetBPM - progress.maxBPMReached)} 分，进度 ${progress.overallProgress}%`
+          : `还有 ${daysUntil} 天截止，当前进度 ${progress.overallProgress}%，建议今日加强观测`,
+        action: { label: '立即去观测', view: 'practice', goalId: goal.id }
       });
     }
 
@@ -5275,9 +5275,9 @@ function generateTodayPlanSuggestions() {
           goalId: goal.id,
           type: 'duration',
           urgency,
-          title: `⏱️ 周练习时长不足：${goal.title}`,
-          message: `本周仅完成 ${progress.weekMinutes} 分钟（目标 ${goal.weeklyMinutes} 分钟），还差 ${remaining} 分钟，建议今日至少练习 ${Math.ceil(remaining / 3)} 分钟`,
-          action: { label: '开始计时练习', view: 'practice', goalId: goal.id }
+          title: `⏱️ 周观测时长不足：${goal.title}`,
+          message: `本周仅完成 ${progress.weekMinutes} 分钟（目标 ${goal.weeklyMinutes} 分钟），还差 ${remaining} 分钟，建议今日至少观测 ${Math.ceil(remaining / 3)} 分钟`,
+          action: { label: '开始计时观测', view: 'practice', goalId: goal.id }
         });
       }
     }
@@ -5288,9 +5288,9 @@ function generateTodayPlanSuggestions() {
         goalId: goal.id,
         type: 'bpm',
         urgency: 'info',
-        title: `🎵 BPM进展较慢：${goal.title}`,
-        message: `当前最高BPM ${progress.maxBPMReached || '尚未记录'}，目标 ${goal.targetBPM} BPM，建议今日专注慢速准确练习逐步提升`,
-        action: { label: '设置BPM去练习', view: 'practice', goalId: goal.id, bpm: Math.max(Number(goal.startBPM) || 60, progress.maxBPMReached || Number(goal.startBPM) || 60) }
+        title: `📊 质量分进展较慢：${goal.title}`,
+        message: `当前最高质量分 ${progress.maxBPMReached || '尚未记录'}，目标 ${goal.targetBPM} 分，建议今日专注准确观测逐步提升`,
+        action: { label: '设置质量分去观测', view: 'practice', goalId: goal.id, bpm: Math.max(Number(goal.startBPM) || 60, progress.maxBPMReached || Number(goal.startBPM) || 60) }
       });
     }
   });
@@ -5338,7 +5338,7 @@ goalForm.addEventListener('submit', (e) => {
   editingGoalId = null;
   goalForm.reset();
   cancelGoalEditBtn.style.display = 'none';
-  goalFormTitle.textContent = '🎯 新增练习目标';
+  goalFormTitle.textContent = '🎯 新增观测目标';
   persistGoals();
   render();
 });
@@ -5347,14 +5347,14 @@ cancelGoalEditBtn && cancelGoalEditBtn.addEventListener('click', () => {
   editingGoalId = null;
   goalForm.reset();
   cancelGoalEditBtn.style.display = 'none';
-  goalFormTitle.textContent = '🎯 新增练习目标';
+  goalFormTitle.textContent = '🎯 新增观测目标';
 });
 
 function editGoal(id) {
   const goal = goals.find(g => g.id === id);
   if (!goal) return;
   editingGoalId = id;
-  goalFormTitle.textContent = '✏️ 编辑练习目标';
+  goalFormTitle.textContent = '✏️ 编辑观测目标';
   cancelGoalEditBtn.style.display = 'inline-block';
   Object.entries(goal).forEach(([key, value]) => {
     if (goalForm.elements[key] && value !== null && value !== undefined) {
@@ -5365,13 +5365,13 @@ function editGoal(id) {
 }
 
 function removeGoal(id) {
-  if (!confirm('确定要删除这个目标吗？关联的练习记录将保留，但目标将不再显示在看板中。')) return;
+  if (!confirm('确定要删除这个目标吗？关联的观测记录将保留，但目标将不再显示在看板中。')) return;
   goals = goals.filter(g => g.id !== id);
   if (editingGoalId === id) {
     editingGoalId = null;
     goalForm.reset();
     cancelGoalEditBtn.style.display = 'none';
-    goalFormTitle.textContent = '🎯 新增练习目标';
+    goalFormTitle.textContent = '🎯 新增观测目标';
   }
   persistGoals();
   render();
@@ -5476,11 +5476,11 @@ practiceStartBtn && practiceStartBtn.addEventListener('click', () => {
     practiceTimerState.elapsedSeconds = Math.floor((Date.now() - practiceTimerState.startTime) / 1000);
     updateTimerDisplay();
   }, 1000);
-  practiceStartBtn.textContent = '▶️ 练习中';
+  practiceStartBtn.textContent = '▶️ 观测中';
   practiceStartBtn.disabled = true;
   practicePauseBtn.disabled = false;
   practiceStopBtn.disabled = false;
-  document.querySelector('#practiceStatusBadge').textContent = '练习中';
+  document.querySelector('#practiceStatusBadge').textContent = '观测中';
   document.querySelector('#practiceStatusBadge').className = 'countBadge compareQualityGood';
   if (metronomeEnabled) startMetronome();
 });
@@ -5489,7 +5489,7 @@ practicePauseBtn && practicePauseBtn.addEventListener('click', () => {
   if (!practiceTimerState.isRunning) return;
   practiceTimerState.isRunning = false;
   clearInterval(practiceTimerState.timerInterval);
-  practiceStartBtn.textContent = '▶️ 继续练习';
+  practiceStartBtn.textContent = '▶️ 继续观测';
   practiceStartBtn.disabled = false;
   practicePauseBtn.disabled = true;
   document.querySelector('#practiceStatusBadge').textContent = '已暂停';
@@ -5498,7 +5498,7 @@ practicePauseBtn && practicePauseBtn.addEventListener('click', () => {
 });
 
 practiceStopBtn && practiceStopBtn.addEventListener('click', () => {
-  if (!confirm(`确定结束本次练习吗？\n\n已练习：${formatDuration(practiceTimerState.elapsedSeconds)}`)) return;
+  if (!confirm(`确定结束本次观测吗？\n\n已观测：${formatDuration(practiceTimerState.elapsedSeconds)}`)) return;
   finishPracticeSession();
 });
 
@@ -5509,7 +5509,7 @@ function finishPracticeSession() {
   stopMetronome();
 
   if (durationSeconds < 5) {
-    alert('练习时间太短，不保存记录（至少5秒）');
+    alert('观测时间太短，不保存记录（至少5秒）');
     resetPracticeState();
     return;
   }
@@ -5528,7 +5528,7 @@ function finishPracticeSession() {
   const record = {
     id: crypto.randomUUID(),
     goalId: goalId || null,
-    goalTitle: goal ? goal.title : '自由练习',
+    goalTitle: goal ? goal.title : '自由观测',
     date: new Date().toISOString().slice(0, 10),
     startTime: new Date(Date.now() - durationSeconds * 1000).toISOString(),
     endTime: new Date().toISOString(),
@@ -5544,15 +5544,15 @@ function finishPracticeSession() {
   practiceRecords.unshift(record);
   persistPracticeRecords();
 
-  let resultMsg = `✅ 练习记录已保存！\n\n练习时长：${formatDuration(durationSeconds)}\n设置BPM：${bpmInput}\n平均BPM：${avgBPM}\n最高BPM：${maxBPM}\n击拍次数：${tapTimes.length}`;
+  let resultMsg = `✅ 观测记录已保存！\n\n观测时长：${formatDuration(durationSeconds)}\n设置质量分：${bpmInput}\n平均质量分：${avgBPM}\n最高质量分：${maxBPM}\n评估次数：${tapTimes.length}`;
 
   if (goalId) {
     const result = autoUpdateGoalOnPracticeEnd(goalId, avgBPM, durationMinutes);
     if (result && result.achievedGoal) {
-      resultMsg += `\n\n🎉 恭喜！本次练习达到了目标BPM ${goal.targetBPM}，目标 "${goal.title}" 已自动标记为达成！\n（可在目标看板中手动撤销达成状态）`;
+      resultMsg += `\n\n🎉 恭喜！本次观测达到了目标质量分 ${goal.targetBPM}，目标 "${goal.title}" 已自动标记为达成！\n（可在目标看板中手动撤销达成状态）`;
     } else if (goal) {
       const progress = getGoalProgress(goal);
-      resultMsg += `\n\n📊 目标进度更新：${progress.overallProgress}%\nBPM进度：${progress.bpmProgress}%\n时长进度：${progress.durationProgress}%`;
+      resultMsg += `\n\n📊 目标进度更新：${progress.overallProgress}%\n质量分进度：${progress.bpmProgress}%\n时长进度：${progress.durationProgress}%`;
     }
   }
 
@@ -5566,7 +5566,7 @@ function resetPracticeState() {
   practiceTimerState.elapsedSeconds = 0;
   practiceTimerState.startTime = null;
   tapTimes = [];
-  practiceStartBtn.textContent = '▶️ 开始练习';
+  practiceStartBtn.textContent = '▶️ 开始观测';
   practiceStartBtn.disabled = false;
   practicePauseBtn.disabled = true;
   practiceStopBtn.disabled = true;
@@ -5582,8 +5582,8 @@ function resetPracticeState() {
 
 practiceBPMInput && practiceBPMInput.addEventListener('change', () => {
   const val = Number(practiceBPMInput.value);
-  if (val >= 20 && val <= 300) {
-    document.querySelector('#timerBPMDisplay').textContent = `BPM: ${val}`;
+  if (val >= 20 && val <= 100) {
+    document.querySelector('#timerBPMDisplay').textContent = `质量分: ${val}`;
     if (metronomeEnabled && practiceTimerState.isRunning) {
       stopMetronome();
       startMetronome();
@@ -5597,9 +5597,9 @@ practiceBPMInput && practiceBPMInput.addEventListener('change', () => {
   btn.addEventListener('click', () => {
     const delta = Number(id.replace(/bpm/, ''));
     const cur = Number(practiceBPMInput.value) || 60;
-    const newVal = Math.max(20, Math.min(300, cur + delta));
+    const newVal = Math.max(20, Math.min(100, cur + delta));
     practiceBPMInput.value = newVal;
-    document.querySelector('#timerBPMDisplay').textContent = `BPM: ${newVal}`;
+    document.querySelector('#timerBPMDisplay').textContent = `质量分: ${newVal}`;
     if (metronomeEnabled && practiceTimerState.isRunning) {
       stopMetronome();
       startMetronome();
@@ -5639,12 +5639,12 @@ tapBtn && tapBtn.addEventListener('click', () => {
 metronomeToggleBtn && metronomeToggleBtn.addEventListener('click', () => {
   metronomeEnabled = !metronomeEnabled;
   if (metronomeEnabled) {
-    metronomeToggleBtn.textContent = '🔇 关闭节拍器';
+    metronomeToggleBtn.textContent = '🔕 关闭提醒';
     metronomeToggleBtn.style.background = '#d9f3ed';
     metronomeToggleBtn.style.color = '#0d9488';
     if (practiceTimerState.isRunning) startMetronome();
   } else {
-    metronomeToggleBtn.textContent = '🔊 开启节拍器';
+    metronomeToggleBtn.textContent = '🔔 开启提醒';
     metronomeToggleBtn.style.background = '';
     metronomeToggleBtn.style.color = '';
     stopMetronome();
@@ -5698,13 +5698,13 @@ practiceGoalSelect && practiceGoalSelect.addEventListener('change', () => {
   const disp = document.querySelector('#timerGoalDisplay');
   if (!disp) return;
   if (goal) {
-    disp.textContent = `目标：${goal.title} (目标BPM: ${goal.targetBPM || '-'})`;
+    disp.textContent = `目标：${goal.title} (目标质量分: ${goal.targetBPM || '-'})`;
     if (goal.targetBPM) {
       const maxBPM = getGoalMaxBPM(goalId);
       const suggested = maxBPM > 0 ? Math.min(maxBPM + 5, Number(goal.targetBPM)) : (Number(goal.startBPM) || Number(goal.targetBPM) - 20);
       if (practiceBPMInput) {
         practiceBPMInput.value = Math.max(20, suggested);
-        document.querySelector('#timerBPMDisplay').textContent = `BPM: ${practiceBPMInput.value}`;
+        document.querySelector('#timerBPMDisplay').textContent = `质量分: ${practiceBPMInput.value}`;
       }
     }
   } else {
@@ -5734,7 +5734,7 @@ function renderGoalList() {
   });
 
   if (list.length === 0) {
-    container.innerHTML = '<p class="empty" style="text-align:center;padding:40px 16px;">暂无目标，快去创建第一个练习目标吧！🎯</p>';
+    container.innerHTML = '<p class="empty" style="text-align:center;padding:40px 16px;">暂无目标，快去创建第一个观测目标吧！🎯</p>';
     return;
   }
 
@@ -5757,7 +5757,7 @@ function renderGoalList() {
 
     const bpmBar = (goal.targetBPM && progress.targetBPM > 0)
       ? `<div class="goalSubProgress">
-          <div class="goalSubLabel">🎵 BPM进度：${progress.maxBPMReached || 0} / ${progress.targetBPM} BPM</div>
+          <div class="goalSubLabel">📊 质量分进度：${progress.maxBPMReached || 0} / ${progress.targetBPM} 分</div>
           <div class="progressBar"><div class="progressFill" style="width:${progress.bpmProgress}%;background:linear-gradient(90deg,#0d9488,#14b8a6);"></div></div>
         </div>` : '';
 
@@ -5779,7 +5779,7 @@ function renderGoalList() {
             <span class="goalPriority ${pri.cls}">${pri.text}</span>
           </div>
           <div class="goalMetaRow">
-            <span class="goalTypeTag">${goal.goalType === 'bpm' ? 'BPM目标' : goal.goalType === 'duration' ? '时长目标' : '综合目标'}</span>
+            <span class="goalTypeTag">${goal.goalType === 'bpm' ? '质量分目标' : goal.goalType === 'duration' ? '时长目标' : '综合目标'}</span>
             ${goal.deadline ? `<span class="goalDeadline">📅 ${goal.deadline}</span>` : ''}
             ${statusBadge}
           </div>
@@ -5794,7 +5794,7 @@ function renderGoalList() {
         ${bpmBar}
         ${durBar}
         <div class="goalCardActions">
-          ${!goal.completed ? `<button class="primary goalActionBtn primary-action" data-action="select-goal-practice" data-goal-id="${goal.id}">▶️ 去练习</button>` : ''}
+          ${!goal.completed ? `<button class="primary goalActionBtn primary-action" data-action="select-goal-practice" data-goal-id="${goal.id}">▶️ 去观测</button>` : ''}
           ${undoButton}
           <button class="ghost goalActionBtn" data-action="edit-goal" data-goal-id="${goal.id}">✏️ 编辑</button>
           <button class="ghost goalActionBtn" data-action="delete-goal" data-goal-id="${goal.id}" style="color:#dc2626;background:#fee2e2;">🗑️ 删除</button>
@@ -5838,20 +5838,20 @@ function renderTodayPlan(containerId) {
   const suggestions = generateTodayPlanSuggestions();
 
   let summaryHtml = `<div class="planSummary">
-    <div class="planSumItem"><span>今日练习</span><strong>${todayMinutes.toFixed(1)} 分钟</strong></div>
+    <div class="planSumItem"><span>今日观测</span><strong>${todayMinutes.toFixed(1)} 分钟</strong></div>
     <div class="planSumItem"><span>本周累计</span><strong>${getTotalWeekPracticeMinutes(today).toFixed(1)} 分钟</strong></div>
-    <div class="planSumItem"><span>今日练习次</span><strong>${todayPractices.length} 次</strong></div>
+    <div class="planSumItem"><span>今日观测次</span><strong>${todayPractices.length} 次</strong></div>
   </div>`;
 
   if (todayPractices.length > 0) {
     summaryHtml += `<div class="todayPracticeTinyList">
-      <div class="tinyListTitle">今日练习记录</div>
+      <div class="tinyListTitle">今日观测记录</div>
       ${todayPractices.slice(0, 3).map(r => `
         <div class="tinyPracticeItem">
           <span class="tinyTime">${new Date(r.startTime).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}</span>
-          <span class="tinyTitle">${escapeHtml(r.goalTitle || '自由练习')}</span>
+          <span class="tinyTitle">${escapeHtml(r.goalTitle || '自由观测')}</span>
           <span class="tinyMin">${r.durationMinutes.toFixed(1)}分</span>
-          <span class="tinyBPM">${r.avgBPM}BPM</span>
+          <span class="tinyBPM">${r.avgBPM}分</span>
         </div>
       `).join('')}
     </div>`;
@@ -5873,7 +5873,7 @@ function renderTodayPlan(containerId) {
   } else {
     suggestionsHtml = `<div class="planSuggestionItem sug-success">
       <div class="sugTitle">✨ 今日状态良好</div>
-      <div class="sugMsg">所有目标进度正常，暂无紧急补练建议。继续保持！🎉</div>
+      <div class="sugMsg">所有目标进度正常，暂无紧急补测建议。继续保持！🎉</div>
     </div>`;
   }
 
@@ -5885,8 +5885,8 @@ function renderPracticeGoalSelect() {
   if (!sel) return;
   const activeGoals = goals.filter(g => !g.completed);
   const prevVal = sel.value;
-  sel.innerHTML = `<option value="">-- 无目标自由练习 --</option>` +
-    activeGoals.map(g => `<option value="${g.id}">${escapeHtml(g.title)}${g.targetBPM ? ` (目标${g.targetBPM}BPM)` : ''}</option>`).join('');
+  sel.innerHTML = `<option value="">-- 无目标自由观测 --</option>` +
+    activeGoals.map(g => `<option value="${g.id}">${escapeHtml(g.title)}${g.targetBPM ? ` (目标${g.targetBPM}分)` : ''}</option>`).join('');
   if (prevVal && goals.find(g => g.id === prevVal)) sel.value = prevVal;
 }
 
@@ -5917,7 +5917,7 @@ function renderPracticeStats() {
       <strong>${totalMin.toFixed(0)}<small>分</small></strong>
     </div>
     <div class="practiceStatCard">
-      <span>平均BPM</span>
+      <span>平均质量分</span>
       <strong>${avgBPM}</strong>
     </div>
   `;
@@ -5928,7 +5928,7 @@ function renderPracticeRecordList() {
   const container = document.querySelector('#practiceRecordList');
   if (!container) return;
   if (practiceRecords.length === 0) {
-    container.innerHTML = '<p class="empty" style="text-align:center;padding:32px 16px;">暂无练习记录，开始您的第一次练习吧！</p>';
+    container.innerHTML = '<p class="empty" style="text-align:center;padding:32px 16px;">暂无观测记录，开始您的第一次观测吧！</p>';
     return;
   }
   const list = practiceRecords.slice(0, 30);
@@ -5937,7 +5937,7 @@ function renderPracticeRecordList() {
       <table>
         <thead>
           <tr>
-            <th>日期</th><th>时长</th><th>关联目标</th><th>设置BPM</th><th>平均/最高</th><th>击拍</th>
+            <th>日期</th><th>时长</th><th>关联目标</th><th>设置质量分</th><th>平均/最高</th><th>评估次数</th>
           </tr>
         </thead>
         <tbody>
@@ -6002,13 +6002,13 @@ function renderPracticeView() {
   renderPracticeRecordList();
   renderTodayPlan('#todayPlanInPracticeContent');
   updateTimerDisplay();
-  document.querySelector('#timerBPMDisplay').textContent = `BPM: ${practiceBPMInput?.value || 60}`;
+  document.querySelector('#timerBPMDisplay').textContent = `质量分: ${practiceBPMInput?.value || 60}`;
   const sel = document.querySelector('#practiceGoalSelect');
   if (sel) {
     const disp = document.querySelector('#timerGoalDisplay');
     if (disp && sel.value) {
       const g = goals.find(x => x.id === sel.value);
-      disp.textContent = g ? `目标：${g.title} (目标BPM: ${g.targetBPM || '-'})` : '未绑定目标';
+      disp.textContent = g ? `目标：${g.title} (目标质量分: ${g.targetBPM || '-'})` : '未绑定目标';
     } else if (disp) {
       disp.textContent = '未绑定目标';
     }

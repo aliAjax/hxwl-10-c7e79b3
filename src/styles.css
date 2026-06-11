@@ -2769,10 +2769,9 @@ svg path:hover {
   color: #0d9488;
 }
 
-/* ===== 目标看板 & 练习中心 布局 ===== */
+/* ===== 目标看板 & 观测中心 布局 ===== */
 #goalsViewSection,
 #practiceViewSection {
-  display: none;
   width: 100%;
 }
 
@@ -3024,6 +3023,7 @@ svg path:hover {
   border-radius: 4px;
 }
 
+/* ===== 观测中心 ===== */
 .planSuggestions {
   display: flex;
   flex-direction: column;
@@ -3501,7 +3501,7 @@ svg path:hover {
   transform: translateY(-1px);
 }
 
-/* ===== BPM 控制器 ===== */
+/* ===== 质量分控制器 ===== */
 .bpmControlPanel {
   background: #ffffff;
   border: 1px solid #e2e8f0;
@@ -3609,7 +3609,7 @@ svg path:hover {
   color: #0d9488;
 }
 
-/* ===== TAP 击拍 ===== */
+/* ===== TAP 质量评估 ===== */
 .tapPanel {
   background: #ffffff;
   border: 1px solid #e2e8f0;
@@ -3682,7 +3682,7 @@ svg path:hover {
   font-family: 'Courier New', monospace;
 }
 
-/* ===== 练习统计 ===== */
+/* ===== 观测统计 ===== */
 .practiceStatsRow {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
