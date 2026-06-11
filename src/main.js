@@ -3542,6 +3542,9 @@ function renderCompareView() {
   document.querySelector('#mapSection').style.display = 'none';
   document.querySelector('#stationSection').style.display = 'none';
   document.querySelector('#snapshotSection').style.display = 'none';
+  document.querySelector('#weatherDictSection').style.display = 'none';
+  document.querySelector('#rulesCenterSection').style.display = 'none';
+  document.querySelector('#reportViewSection').style.display = 'none';
   document.querySelector('#oplogSection').style.display = '';
   document.querySelector('#compareViewSection').style.display = '';
   
