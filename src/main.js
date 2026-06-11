@@ -1644,7 +1644,7 @@ function detectFieldMapping(headers) {
     'date': 'date', '日期': 'date',
     'time': 'time', '时间': 'time',
     'level': 'level', '潮位': 'level', '水位': 'level',
-    'windDir': 'windDir', '风向': 'windDir',
+    'windDir': 'windDir', 'winddir': 'windDir', '风向': 'windDir',
     'wind': 'wind', '风速': 'wind',
     'weather': 'weather', '天气': 'weather',
     'note': 'note', '备注': 'note', '说明': 'note'
