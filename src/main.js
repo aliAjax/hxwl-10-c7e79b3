@@ -46,6 +46,9 @@ let editingId = null;
 let editingStationId = null;
 let editingWeatherDictId = null;
 let pendingImportData = null;
+let importMergeStrategy = 'skip';
+let importAddUnknownStations = false;
+let importAddUnknownWeather = false;
 let currentView = 'list';
 let calendarYear = new Date().getFullYear();
 let calendarMonth = new Date().getMonth();
@@ -2133,6 +2136,51 @@ function validateRow(row, mapping, lineNum) {
   };
 }
 
+function detectImportDuplicates(validRows) {
+  const existingKeyMap = new Map();
+  records.forEach(record => {
+    const key = `${record.place}|${record.date}|${record.time}`;
+    if (!existingKeyMap.has(key)) {
+      existingKeyMap.set(key, []);
+    }
+    existingKeyMap.get(key).push(record);
+  });
+  
+  const csvKeyMap = new Map();
+  validRows.forEach(row => {
+    const key = `${row.data.place}|${row.data.date}|${row.data.time}`;
+    if (!csvKeyMap.has(key)) {
+      csvKeyMap.set(key, []);
+    }
+    csvKeyMap.get(key).push(row);
+  });
+  
+  const duplicatesWithExisting = [];
+  const duplicatesWithinCsv = [];
+  
+  csvKeyMap.forEach((rows, key) => {
+    if (existingKeyMap.has(key)) {
+      duplicatesWithExisting.push({
+        key,
+        csvRows: rows,
+        existingRecords: existingKeyMap.get(key)
+      });
+    }
+    if (rows.length > 1) {
+      duplicatesWithinCsv.push({
+        key,
+        csvRows: rows
+      });
+    }
+  });
+  
+  return {
+    duplicatesWithExisting,
+    duplicatesWithinCsv,
+    totalDuplicateRows: duplicatesWithExisting.reduce((sum, d) => sum + d.csvRows.length, 0)
+  };
+}
+
 function importCsv(event) {
   const file = event.target.files[0];
   if (!file) return;
@@ -2163,12 +2211,27 @@ function importCsv(event) {
     });
     const validRows = results.filter(r => r.valid);
     const errorRows = results.filter(r => !r.valid);
+    
+    const stationNames = stations.map(s => s.name);
+    const weatherNames = weatherDict.map(w => w.name);
+    const unknownStations = [...new Set(validRows.map(r => r.data.place).filter(p => !stationNames.includes(p)))];
+    const unknownWeather = [...new Set(validRows.map(r => r.data.weather).filter(w => w && !weatherNames.includes(w)))];
+    
+    const duplicateInfo = detectImportDuplicates(validRows);
+    
+    importMergeStrategy = 'skip';
+    importAddUnknownStations = false;
+    importAddUnknownWeather = false;
+    
     pendingImportData = {
       validRows,
       errorRows,
       mapping,
       headers,
-      fileName: file.name
+      fileName: file.name,
+      unknownStations,
+      unknownWeather,
+      duplicateInfo
     };
     renderCsvPreview();
     openCsvModal();
@@ -2181,11 +2244,12 @@ function importCsv(event) {
 
 function renderCsvPreview() {
   if (!pendingImportData) return;
-  const { validRows, errorRows, mapping, headers, fileName } = pendingImportData;
+  const { validRows, errorRows, mapping, headers, fileName, unknownStations, unknownWeather, duplicateInfo } = pendingImportData;
   const fieldMap = { place: '地点', date: '日期', time: '时间', level: '潮位', windDir: '风向', wind: '风速', weather: '天气', note: '备注' };
   const mappingHtml = Object.entries(mapping).map(([field, idx]) => {
     return `<div class="mappingItem"><span class="mappingKey">${fieldMap[field]}</span><span class="mappingArrow">→</span><span class="mappingVal">${headers[idx]}</span></div>`;
   }).join('');
+  
   let errorSummary = '';
   if (errorRows.length > 0) {
     const errorList = errorRows.slice(0, 10).map(r => {
@@ -2201,8 +2265,77 @@ function renderCsvPreview() {
       </div>
     `;
   }
-  const previewRows = validRows.slice(0, 5).map(r => `
-    <tr>
+  
+  let duplicateSection = '';
+  if (duplicateInfo && (duplicateInfo.duplicatesWithExisting.length > 0 || duplicateInfo.duplicatesWithinCsv.length > 0)) {
+    let dupList = '';
+    if (duplicateInfo.duplicatesWithExisting.length > 0) {
+      const dupRows = duplicateInfo.duplicatesWithExisting.slice(0, 5).map(d => {
+        const [place, date, time] = d.key.split('|');
+        return `<div class="dupRow"><span class="dupKey">${escapeHtml(place)} · ${date} ${time}</span><span class="dupBadge">与现有 ${d.existingRecords.length} 条重复 · CSV中 ${d.csvRows.length} 条</span></div>`;
+      }).join('');
+      const moreDup = duplicateInfo.duplicatesWithExisting.length > 5 ? `<div class="moreErrors">...还有 ${duplicateInfo.duplicatesWithExisting.length - 5} 组重复未显示</div>` : '';
+      dupList += `<div class="dupGroupTitle">🔄 与现有记录重复 (${duplicateInfo.totalDuplicateRows} 条)</div>${dupRows}${moreDup}`;
+    }
+    if (duplicateInfo.duplicatesWithinCsv.length > 0) {
+      const csvDupRows = duplicateInfo.duplicatesWithinCsv.slice(0, 3).map(d => {
+        const [place, date, time] = d.key.split('|');
+        const lineNums = d.csvRows.map(r => r.lineNum).join(', ');
+        return `<div class="dupRow"><span class="dupKey">${escapeHtml(place)} · ${date} ${time}</span><span class="dupBadge">CSV内重复 · 第${lineNums}行 (${d.csvRows.length}条)</span></div>`;
+      }).join('');
+      const moreCsvDup = duplicateInfo.duplicatesWithinCsv.length > 3 ? `<div class="moreErrors">...还有 ${duplicateInfo.duplicatesWithinCsv.length - 3} 组内部重复未显示</div>` : '';
+      dupList += `<div class="dupGroupTitle">📋 CSV内部重复 (${duplicateInfo.duplicatesWithinCsv.length} 组)</div>${csvDupRows}${moreCsvDup}`;
+    }
+    duplicateSection = `
+      <div class="previewSection warnSection">
+        <h3 class="warnTitle">⚠️ 疑似重复记录</h3>
+        <div class="dupList">${dupList}</div>
+        <div class="strategySelect">
+          <div class="strategyLabel">合并策略：</div>
+          <label class="strategyOption"><input type="radio" name="mergeStrategy" value="skip" ${importMergeStrategy === 'skip' ? 'checked' : ''}><span>跳过重复</span></label>
+          <label class="strategyOption"><input type="radio" name="mergeStrategy" value="overwrite" ${importMergeStrategy === 'overwrite' ? 'checked' : ''}><span>覆盖已有</span></label>
+          <label class="strategyOption"><input type="radio" name="mergeStrategy" value="append" ${importMergeStrategy === 'append' ? 'checked' : ''}><span>作为新记录追加</span></label>
+        </div>
+      </div>
+    `;
+  }
+  
+  let unknownStationSection = '';
+  if (unknownStations && unknownStations.length > 0) {
+    const stationTags = unknownStations.map(s => `<span class="unknownTag">📍 ${escapeHtml(s)}</span>`).join('');
+    unknownStationSection = `
+      <div class="previewSection warnSection">
+        <h3 class="warnTitle">📍 未知站点 (${unknownStations.length} 个)</h3>
+        <div class="unknownList">${stationTags}</div>
+        <label class="checkOption">
+          <input type="checkbox" id="addUnknownStations" ${importAddUnknownStations ? 'checked' : ''}>
+          <span>确认导入时自动将这些站点添加到站点列表</span>
+        </label>
+      </div>
+    `;
+  }
+  
+  let unknownWeatherSection = '';
+  if (unknownWeather && unknownWeather.length > 0) {
+    const weatherTags = unknownWeather.map(w => `<span class="unknownTag">🌤️ ${escapeHtml(w)}</span>`).join('');
+    unknownWeatherSection = `
+      <div class="previewSection warnSection">
+        <h3 class="warnTitle">🌤️ 未知天气 (${unknownWeather.length} 种)</h3>
+        <div class="unknownList">${weatherTags}</div>
+        <label class="checkOption">
+          <input type="checkbox" id="addUnknownWeather" ${importAddUnknownWeather ? 'checked' : ''}>
+          <span>确认导入时自动将这些天气添加到天气词典</span>
+        </label>
+      </div>
+    `;
+  }
+  
+  const previewRows = validRows.slice(0, 5).map(r => {
+    const key = `${r.data.place}|${r.data.date}|${r.data.time}`;
+    const isDup = duplicateInfo && duplicateInfo.duplicatesWithExisting.some(d => d.key === key);
+    const rowClass = isDup ? 'dupPreviewRow' : '';
+    return `
+    <tr class="${rowClass}">
       <td>${r.lineNum}</td>
       <td>${escapeHtml(r.data.place)}</td>
       <td>${escapeHtml(r.data.date)}</td>
@@ -2213,8 +2346,11 @@ function renderCsvPreview() {
       <td>${escapeHtml(r.data.weather)}</td>
       <td>${escapeHtml(r.data.note || '-')}</td>
     </tr>
-  `).join('');
+  `}).join('');
   const morePreview = validRows.length > 5 ? `<div class="morePreview">...还有 ${validRows.length - 5} 条有效数据</div>` : '';
+  
+  const newRecordsCount = calculateImportCount();
+  
   const html = `
     <div class="previewHeader">
       <div class="fileName">📄 ${escapeHtml(fileName)}</div>
@@ -2223,12 +2359,16 @@ function renderCsvPreview() {
       <div class="statCard total"><span class="statLabel">解析总行数</span><span class="statValue">${validRows.length + errorRows.length}</span></div>
       <div class="statCard valid"><span class="statLabel">有效行数</span><span class="statValue">${validRows.length}</span></div>
       <div class="statCard error"><span class="statLabel">错误行数</span><span class="statValue">${errorRows.length}</span></div>
+      <div class="statCard new"><span class="statLabel">预计新增</span><span class="statValue">${newRecordsCount}</span></div>
     </div>
     <div class="previewSection">
       <h3>🔗 字段映射</h3>
       <div class="mappingGrid">${mappingHtml}</div>
     </div>
     ${errorSummary}
+    ${duplicateSection}
+    ${unknownStationSection}
+    ${unknownWeatherSection}
     <div class="previewSection">
       <h3>📋 数据预览 (前5条)</h3>
       <div class="tableWrap">
@@ -2244,13 +2384,62 @@ function renderCsvPreview() {
   `;
   document.querySelector('#csvModalBody').innerHTML = html;
   const confirmBtn = document.querySelector('#confirmCsvImport');
+  
+  document.querySelectorAll('input[name="mergeStrategy"]').forEach(radio => {
+    radio.addEventListener('change', (e) => {
+      importMergeStrategy = e.target.value;
+      renderCsvPreview();
+    });
+  });
+  const addStationsCheckbox = document.querySelector('#addUnknownStations');
+  if (addStationsCheckbox) {
+    addStationsCheckbox.addEventListener('change', (e) => {
+      importAddUnknownStations = e.target.checked;
+    });
+  }
+  const addWeatherCheckbox = document.querySelector('#addUnknownWeather');
+  if (addWeatherCheckbox) {
+    addWeatherCheckbox.addEventListener('change', (e) => {
+      importAddUnknownWeather = e.target.checked;
+    });
+  }
+  
   if (validRows.length > 0) {
     confirmBtn.disabled = false;
-    confirmBtn.textContent = `确认导入 ${validRows.length} 条记录`;
+    confirmBtn.textContent = `确认导入 (预计新增 ${newRecordsCount} 条)`;
   } else {
     confirmBtn.disabled = true;
     confirmBtn.textContent = '没有可导入的有效数据';
   }
+}
+
+function calculateImportCount() {
+  if (!pendingImportData) return 0;
+  const { validRows, duplicateInfo } = pendingImportData;
+  
+  if (importMergeStrategy === 'append') {
+    return validRows.length;
+  } else if (importMergeStrategy === 'skip') {
+    const uniqueKeys = new Set();
+    const existingKeys = new Set(records.map(r => `${r.place}|${r.date}|${r.time}`));
+    let count = 0;
+    validRows.forEach(r => {
+      const key = `${r.data.place}|${r.data.date}|${r.data.time}`;
+      if (!existingKeys.has(key) && !uniqueKeys.has(key)) {
+        uniqueKeys.add(key);
+        count++;
+      }
+    });
+    return count;
+  } else if (importMergeStrategy === 'overwrite') {
+    const allKeys = new Set();
+    validRows.forEach(r => {
+      const key = `${r.data.place}|${r.data.date}|${r.data.time}`;
+      allKeys.add(key);
+    });
+    return allKeys.size;
+  }
+  return validRows.length;
 }
 
 function openCsvModal() {
@@ -2264,20 +2453,155 @@ function closeCsvModal() {
 
 function confirmCsvImport() {
   if (!pendingImportData || pendingImportData.validRows.length === 0) return;
-  const { validRows, errorRows } = pendingImportData;
-  const newRecords = validRows.map(r => ({
-    id: crypto.randomUUID(),
-    ...r.data
-  }));
-  records = [...newRecords, ...records];
+  const { validRows, errorRows, unknownStations, unknownWeather } = pendingImportData;
+  
+  let addedStations = 0;
+  let addedWeather = 0;
+  
+  if (importAddUnknownStations && unknownStations && unknownStations.length > 0) {
+    unknownStations.forEach(name => {
+      if (!stations.find(s => s.name === name)) {
+        stations.unshift({
+          id: crypto.randomUUID(),
+          name: name,
+          seaArea: '未知',
+          longitude: 0,
+          latitude: 0,
+          note: 'CSV导入时自动添加'
+        });
+        addedStations++;
+      }
+    });
+    if (addedStations > 0) {
+      persistStations();
+    }
+  }
+  
+  if (importAddUnknownWeather && unknownWeather && unknownWeather.length > 0) {
+    unknownWeather.forEach(name => {
+      if (!weatherDict.find(w => w.name === name)) {
+        weatherDict.unshift({
+          id: crypto.randomUUID(),
+          name: name,
+          icon: '🌤️'
+        });
+        addedWeather++;
+      }
+    });
+    if (addedWeather > 0) {
+      persistWeatherDict();
+    }
+  }
+  
+  let newRecords = [];
+  let skippedCount = 0;
+  let overwrittenCount = 0;
+  
+  if (importMergeStrategy === 'append') {
+    newRecords = validRows.map(r => ({
+      id: crypto.randomUUID(),
+      ...r.data
+    }));
+    records = [...newRecords, ...records];
+  } else if (importMergeStrategy === 'skip') {
+    const existingKeySet = new Set(records.map(r => `${r.place}|${r.date}|${r.time}`));
+    const nonDuplicateRows = validRows.filter(r => {
+      const key = `${r.data.place}|${r.data.date}|${r.data.time}`;
+      if (existingKeySet.has(key)) {
+        skippedCount++;
+        return false;
+      }
+      return true;
+    });
+    
+    const seenKeys = new Set();
+    const uniqueRows = [];
+    nonDuplicateRows.forEach(r => {
+      const key = `${r.data.place}|${r.data.date}|${r.data.time}`;
+      if (seenKeys.has(key)) {
+        skippedCount++;
+      } else {
+        seenKeys.add(key);
+        uniqueRows.push(r);
+      }
+    });
+    
+    newRecords = uniqueRows.map(r => ({
+      id: crypto.randomUUID(),
+      ...r.data
+    }));
+    records = [...newRecords, ...records];
+  } else if (importMergeStrategy === 'overwrite') {
+    const overwriteKeyMap = new Map();
+    validRows.forEach(r => {
+      const key = `${r.data.place}|${r.data.date}|${r.data.time}`;
+      overwriteKeyMap.set(key, r);
+    });
+    
+    const overwrittenIds = new Set();
+    records = records.map(record => {
+      const key = `${record.place}|${record.date}|${record.time}`;
+      if (overwriteKeyMap.has(key)) {
+        overwrittenIds.add(key);
+        const row = overwriteKeyMap.get(key);
+        return {
+          ...record,
+          level: row.data.level,
+          windDir: row.data.windDir,
+          wind: row.data.wind,
+          weather: row.data.weather,
+          note: row.data.note
+        };
+      }
+      return record;
+    });
+    overwrittenCount = overwrittenIds.size;
+    
+    const existingKeySet = new Set(records.map(r => `${r.place}|${r.date}|${r.time}`));
+    const newRows = validRows.filter(r => {
+      const key = `${r.data.place}|${r.data.date}|${r.data.time}`;
+      return !existingKeySet.has(key);
+    });
+    
+    const seenKeys = new Set();
+    const uniqueNewRows = [];
+    newRows.forEach(r => {
+      const key = `${r.data.place}|${r.data.date}|${r.data.time}`;
+      if (!seenKeys.has(key)) {
+        seenKeys.add(key);
+        uniqueNewRows.push(r);
+      }
+    });
+    
+    newRecords = uniqueNewRows.map(r => ({
+      id: crypto.randomUUID(),
+      ...r.data
+    }));
+    records = [...newRecords, ...records];
+  }
+  
   persist();
   render();
   closeCsvModal();
-  const totalImported = validRows.length;
-  const totalSkipped = errorRows.length;
-  let message = `✅ 成功导入 ${totalImported} 条观测记录。`;
-  if (totalSkipped > 0) {
-    message += `\n⚠️ 跳过 ${totalSkipped} 条错误数据，请检查CSV文件。`;
+  
+  const totalImported = newRecords.length + overwrittenCount;
+  const totalSkipped = errorRows.length + skippedCount;
+  let message = `✅ 导入完成\n`;
+  message += `• 新增记录: ${newRecords.length} 条\n`;
+  if (overwrittenCount > 0) {
+    message += `• 覆盖更新: ${overwrittenCount} 条\n`;
+  }
+  if (skippedCount > 0) {
+    message += `• 跳过重复: ${skippedCount} 条\n`;
+  }
+  if (errorRows.length > 0) {
+    message += `• 错误行跳过: ${errorRows.length} 条\n`;
+  }
+  if (addedStations > 0) {
+    message += `\n📍 新增站点: ${addedStations} 个`;
+  }
+  if (addedWeather > 0) {
+    message += `\n🌤️ 新增天气: ${addedWeather} 种`;
   }
   alert(message);
 }

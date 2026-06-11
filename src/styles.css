@@ -2630,3 +2630,141 @@ svg path:hover {
     min-height: 280px;
   }
 }
+
+.warnSection {
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 24px;
+}
+
+.warnTitle {
+  color: #92400e !important;
+}
+
+.dupList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.dupGroupTitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: #78350f;
+  margin-top: 8px;
+  margin-bottom: 6px;
+}
+
+.dupGroupTitle:first-child {
+  margin-top: 0;
+}
+
+.dupRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: white;
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 13px;
+}
+
+.dupKey {
+  color: #17324d;
+  font-weight: 500;
+}
+
+.dupBadge {
+  background: #fef3c7;
+  color: #92400e;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.strategySelect {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid #fde68a;
+}
+
+.strategyLabel {
+  font-size: 13px;
+  font-weight: 600;
+  color: #78350f;
+  margin-bottom: 10px;
+}
+
+.strategyOption {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  margin-right: 8px;
+  margin-bottom: 8px;
+  background: white;
+  border: 1px solid #fde68a;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  color: #78350f;
+  transition: all 0.2s;
+}
+
+.strategyOption:hover {
+  background: #fef3c7;
+}
+
+.strategyOption input[type="radio"] {
+  margin: 0;
+  accent-color: #d97706;
+}
+
+.unknownList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.unknownTag {
+  display: inline-block;
+  background: white;
+  border: 1px solid #fde68a;
+  color: #92400e;
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.checkOption {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #78350f;
+  cursor: pointer;
+  padding: 8px 4px;
+}
+
+.checkOption input[type="checkbox"] {
+  margin: 0;
+  width: 16px;
+  height: 16px;
+  accent-color: #d97706;
+}
+
+.dupPreviewRow {
+  background: #fffbeb !important;
+}
+
+.dupPreviewRow td {
+  color: #92400e;
+}
+
+.statCard.new .statValue {
+  color: #0d9488;
+}
