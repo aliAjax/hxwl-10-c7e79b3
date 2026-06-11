@@ -177,6 +177,50 @@ function applyMergeStrategy(strategy, validRows, existingRecords) {
   };
 }
 
+function calculateImportSummary(strategy, validRows, existingRecords) {
+  if (strategy === 'append') {
+    return { newRecordsCount: validRows.length, overwrittenCount: 0, skippedCount: 0 };
+  } else if (strategy === 'skip') {
+    const uniqueKeys = new Set();
+    const existingKeys = new Set(existingRecords.map(r => `${r.place}|${r.date}|${r.time}`));
+    let newRecordsCount = 0;
+    let skippedCount = 0;
+
+    validRows.forEach(r => {
+      const key = `${r.data.place}|${r.data.date}|${r.data.time}`;
+      if (!existingKeys.has(key) && !uniqueKeys.has(key)) {
+        uniqueKeys.add(key);
+        newRecordsCount++;
+      } else {
+        skippedCount++;
+      }
+    });
+
+    return { newRecordsCount, overwrittenCount: 0, skippedCount };
+  } else if (strategy === 'overwrite') {
+    const existingKeys = new Set(existingRecords.map(r => `${r.place}|${r.date}|${r.time}`));
+    const overwrittenKeys = new Set();
+    const newKeys = new Set();
+
+    validRows.forEach(r => {
+      const key = `${r.data.place}|${r.data.date}|${r.data.time}`;
+      if (existingKeys.has(key)) {
+        overwrittenKeys.add(key);
+      } else {
+        newKeys.add(key);
+      }
+    });
+
+    return {
+      newRecordsCount: newKeys.size,
+      overwrittenCount: overwrittenKeys.size,
+      skippedCount: validRows.length - overwrittenKeys.size - newKeys.size
+    };
+  }
+
+  return { newRecordsCount: validRows.length, overwrittenCount: 0, skippedCount: 0 };
+}
+
 function detectDuplicateAnomalies(records) {
   const anomalies = new Map();
   const keyMap = new Map();
@@ -238,10 +282,19 @@ const anomaliesSkip = detectDuplicateAnomalies(resultSkip.resultRecords);
 console.log(`  异常(重复)记录数: ${anomaliesSkip.size}\n`);
 
 console.log('--- 策略2: 覆盖已有 (overwrite) ---');
+const previewOverwrite = calculateImportSummary('overwrite', validRows, seed);
 const resultOverwrite = applyMergeStrategy('overwrite', validRows, seed);
+console.log(`  预览统计: 新增${previewOverwrite.newRecordsCount}条, 覆盖${previewOverwrite.overwrittenCount}条, 跳过${previewOverwrite.skippedCount}条`);
 console.log(`  新增记录: ${resultOverwrite.newRecordsCount} 条`);
 console.log(`  覆盖更新: ${resultOverwrite.overwrittenCount} 条`);
 console.log(`  最终记录数: ${resultOverwrite.resultRecords.length}`);
+const previewMatchesConfirm = previewOverwrite.newRecordsCount === resultOverwrite.newRecordsCount
+  && previewOverwrite.overwrittenCount === resultOverwrite.overwrittenCount
+  && previewOverwrite.skippedCount === validRows.length - resultOverwrite.newRecordsCount - resultOverwrite.overwrittenCount;
+console.log(`  预览与确认统计一致: ${previewMatchesConfirm ? '✓ 通过' : '✗ 失败'}`);
+if (!previewMatchesConfirm) {
+  process.exit(1);
+}
 const anomaliesOverwrite = detectDuplicateAnomalies(resultOverwrite.resultRecords);
 console.log(`  异常(重复)记录数: ${anomaliesOverwrite.size}`);
 console.log('  验证覆盖是否生效:');

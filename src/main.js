@@ -2349,7 +2349,7 @@ function renderCsvPreview() {
   `}).join('');
   const morePreview = validRows.length > 5 ? `<div class="morePreview">...还有 ${validRows.length - 5} 条有效数据</div>` : '';
   
-  const newRecordsCount = calculateImportCount();
+  const importSummary = calculateImportSummary();
   
   const html = `
     <div class="previewHeader">
@@ -2359,7 +2359,9 @@ function renderCsvPreview() {
       <div class="statCard total"><span class="statLabel">解析总行数</span><span class="statValue">${validRows.length + errorRows.length}</span></div>
       <div class="statCard valid"><span class="statLabel">有效行数</span><span class="statValue">${validRows.length}</span></div>
       <div class="statCard error"><span class="statLabel">错误行数</span><span class="statValue">${errorRows.length}</span></div>
-      <div class="statCard new"><span class="statLabel">预计新增</span><span class="statValue">${newRecordsCount}</span></div>
+      <div class="statCard new"><span class="statLabel">预计新增</span><span class="statValue">${importSummary.newRecordsCount}</span></div>
+      ${importSummary.overwrittenCount > 0 ? `<div class="statCard overwrite"><span class="statLabel">预计覆盖</span><span class="statValue">${importSummary.overwrittenCount}</span></div>` : ''}
+      ${importSummary.skippedCount > 0 ? `<div class="statCard skip"><span class="statLabel">预计跳过</span><span class="statValue">${importSummary.skippedCount}</span></div>` : ''}
     </div>
     <div class="previewSection">
       <h3>🔗 字段映射</h3>
@@ -2406,40 +2408,62 @@ function renderCsvPreview() {
   
   if (validRows.length > 0) {
     confirmBtn.disabled = false;
-    confirmBtn.textContent = `确认导入 (预计新增 ${newRecordsCount} 条)`;
+    const parts = [`预计新增 ${importSummary.newRecordsCount} 条`];
+    if (importSummary.overwrittenCount > 0) {
+      parts.push(`覆盖 ${importSummary.overwrittenCount} 条`);
+    }
+    if (importSummary.skippedCount > 0) {
+      parts.push(`跳过 ${importSummary.skippedCount} 条`);
+    }
+    confirmBtn.textContent = `确认导入 (${parts.join('，')})`;
   } else {
     confirmBtn.disabled = true;
     confirmBtn.textContent = '没有可导入的有效数据';
   }
 }
 
-function calculateImportCount() {
-  if (!pendingImportData) return 0;
-  const { validRows, duplicateInfo } = pendingImportData;
-  
+function calculateImportSummary() {
+  if (!pendingImportData) {
+    return { newRecordsCount: 0, overwrittenCount: 0, skippedCount: 0 };
+  }
+  const { validRows } = pendingImportData;
+
   if (importMergeStrategy === 'append') {
-    return validRows.length;
+    return { newRecordsCount: validRows.length, overwrittenCount: 0, skippedCount: 0 };
   } else if (importMergeStrategy === 'skip') {
     const uniqueKeys = new Set();
     const existingKeys = new Set(records.map(r => `${r.place}|${r.date}|${r.time}`));
     let count = 0;
+    let skippedCount = 0;
     validRows.forEach(r => {
       const key = `${r.data.place}|${r.data.date}|${r.data.time}`;
       if (!existingKeys.has(key) && !uniqueKeys.has(key)) {
         uniqueKeys.add(key);
         count++;
+      } else {
+        skippedCount++;
       }
     });
-    return count;
+    return { newRecordsCount: count, overwrittenCount: 0, skippedCount };
   } else if (importMergeStrategy === 'overwrite') {
-    const allKeys = new Set();
+    const existingKeys = new Set(records.map(r => `${r.place}|${r.date}|${r.time}`));
+    const overwrittenKeys = new Set();
+    const newKeys = new Set();
     validRows.forEach(r => {
       const key = `${r.data.place}|${r.data.date}|${r.data.time}`;
-      allKeys.add(key);
+      if (existingKeys.has(key)) {
+        overwrittenKeys.add(key);
+      } else {
+        newKeys.add(key);
+      }
     });
-    return allKeys.size;
+    return {
+      newRecordsCount: newKeys.size,
+      overwrittenCount: overwrittenKeys.size,
+      skippedCount: validRows.length - overwrittenKeys.size - newKeys.size
+    };
   }
-  return validRows.length;
+  return { newRecordsCount: validRows.length, overwrittenCount: 0, skippedCount: 0 };
 }
 
 function openCsvModal() {
