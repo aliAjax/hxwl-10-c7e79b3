@@ -5101,6 +5101,20 @@ function persistPracticeRecords() {
   localStorage.setItem(practiceRecordsStorageKey, JSON.stringify(practiceRecords));
 }
 
+function normalizeQualityScore(value) {
+  const score = Number(value);
+  if (!Number.isFinite(score) || score <= 0) return 0;
+  return Math.max(20, Math.min(100, Math.round(score)));
+}
+
+function getRecordAvgQuality(record) {
+  return normalizeQualityScore(record?.avgBPM);
+}
+
+function getRecordMaxQuality(record) {
+  return normalizeQualityScore(record?.maxBPM || record?.avgBPM);
+}
+
 function getStartOfWeek(dateStr) {
   const d = new Date(dateStr);
   const day = d.getDay();
@@ -5171,9 +5185,12 @@ function getGoalProgress(goal) {
 }
 
 function getGoalMaxBPM(goalId) {
-  const records = practiceRecords.filter(r => r.goalId === goalId && r.avgBPM);
+  const records = practiceRecords
+    .filter(r => r.goalId === goalId)
+    .map(getRecordAvgQuality)
+    .filter(score => score > 0);
   if (records.length === 0) return 0;
-  return Math.max(...records.map(r => Number(r.avgBPM) || 0));
+  return Math.max(...records);
 }
 
 function isGoalOverdue(goal) {
@@ -5468,6 +5485,18 @@ function formatDuration(seconds) {
   return `${s}秒`;
 }
 
+function clampQualityScore(value) {
+  return normalizeQualityScore(value) || 60;
+}
+
+function getQualityScoreInputValue() {
+  const score = clampQualityScore(practiceBPMInput?.value);
+  if (practiceBPMInput) {
+    practiceBPMInput.value = score;
+  }
+  return score;
+}
+
 practiceStartBtn && practiceStartBtn.addEventListener('click', () => {
   if (practiceTimerState.isRunning) return;
   practiceTimerState.isRunning = true;
@@ -5517,7 +5546,7 @@ function finishPracticeSession() {
   const goalId = practiceGoalSelect ? practiceGoalSelect.value : '';
   const goal = goalId ? goals.find(g => g.id === goalId) : null;
   const durationMinutes = Math.round(durationSeconds / 60 * 10) / 10;
-  const bpmInput = Number(practiceBPMInput?.value) || 60;
+  const bpmInput = getQualityScoreInputValue();
 
   const tapBPMs = tapTimes.map(t => t.bpm).filter(b => b > 0);
   const avgBPM = tapBPMs.length > 0
@@ -5581,13 +5610,11 @@ function resetPracticeState() {
 }
 
 practiceBPMInput && practiceBPMInput.addEventListener('change', () => {
-  const val = Number(practiceBPMInput.value);
-  if (val >= 20 && val <= 100) {
-    document.querySelector('#timerBPMDisplay').textContent = `质量分: ${val}`;
-    if (metronomeEnabled && practiceTimerState.isRunning) {
-      stopMetronome();
-      startMetronome();
-    }
+  const val = getQualityScoreInputValue();
+  document.querySelector('#timerBPMDisplay').textContent = `质量分: ${val}`;
+  if (metronomeEnabled && practiceTimerState.isRunning) {
+    stopMetronome();
+    startMetronome();
   }
 });
 
@@ -5596,8 +5623,8 @@ practiceBPMInput && practiceBPMInput.addEventListener('change', () => {
   if (!btn) return;
   btn.addEventListener('click', () => {
     const delta = Number(id.replace(/bpm/, ''));
-    const cur = Number(practiceBPMInput.value) || 60;
-    const newVal = Math.max(20, Math.min(100, cur + delta));
+    const cur = getQualityScoreInputValue();
+    const newVal = clampQualityScore(cur + delta);
     practiceBPMInput.value = newVal;
     document.querySelector('#timerBPMDisplay').textContent = `质量分: ${newVal}`;
     if (metronomeEnabled && practiceTimerState.isRunning) {
@@ -5615,21 +5642,13 @@ tapBtn && tapBtn.addEventListener('click', () => {
       tapTimes = [];
     }
   }
-  tapTimes.push({ time: now, bpm: 0 });
-  if (tapTimes.length >= 2) {
-    const intervals = [];
-    for (let i = 1; i < tapTimes.length; i++) {
-      intervals.push(tapTimes[i].time - tapTimes[i - 1].time);
-    }
-    const avgInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length;
-    const bpm = Math.round(60000 / avgInterval);
-    tapTimes[tapTimes.length - 1].bpm = bpm;
-    document.querySelector('#tapBPM').textContent = bpm;
-    const validBPMs = tapTimes.map(t => t.bpm).filter(b => b > 0);
-    if (validBPMs.length > 0) {
-      const avg = Math.round(validBPMs.reduce((a, b) => a + b, 0) / validBPMs.length);
-      document.querySelector('#tapAvgBPM').textContent = avg;
-    }
+  const score = getQualityScoreInputValue();
+  tapTimes.push({ time: now, bpm: score });
+  document.querySelector('#tapBPM').textContent = score;
+  const validScores = tapTimes.map(t => t.bpm).filter(b => b > 0);
+  if (validScores.length > 0) {
+    const avg = Math.round(validScores.reduce((a, b) => a + b, 0) / validScores.length);
+    document.querySelector('#tapAvgBPM').textContent = avg;
   }
   document.querySelector('#tapCount').textContent = tapTimes.length;
   tapBtn.style.transform = 'scale(0.95)';
@@ -5899,8 +5918,9 @@ function renderPracticeStats() {
   const weekMin = getTotalWeekPracticeMinutes(today);
   const todayMin = practiceRecords.filter(r => r.date === today).reduce((s, r) => s + r.durationMinutes, 0);
   const totalMin = practiceRecords.reduce((s, r) => s + r.durationMinutes, 0);
-  const avgBPM = practiceRecords.length > 0
-    ? Math.round(practiceRecords.filter(r => r.avgBPM).reduce((s, r) => s + r.avgBPM, 0) / Math.max(1, practiceRecords.filter(r => r.avgBPM).length))
+  const qualityScores = practiceRecords.map(getRecordAvgQuality).filter(score => score > 0);
+  const avgBPM = qualityScores.length > 0
+    ? Math.round(qualityScores.reduce((s, score) => s + score, 0) / qualityScores.length)
     : 0;
 
   sumContainer.innerHTML = `
@@ -5946,8 +5966,8 @@ function renderPracticeRecordList() {
               <td>${r.date}<br><small style="color:#8899a6;">${new Date(r.startTime).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}</small></td>
               <td><strong>${r.durationMinutes.toFixed(1)}</strong>分</td>
               <td>${escapeHtml(r.goalTitle || '-')}</td>
-              <td>${r.practiceBPM}</td>
-              <td>${r.avgBPM || '-'} / ${r.maxBPM || '-'}</td>
+              <td>${normalizeQualityScore(r.practiceBPM) || '-'}</td>
+              <td>${getRecordAvgQuality(r) || '-'} / ${getRecordMaxQuality(r) || '-'}</td>
               <td>${r.tapCount || 0}</td>
             </tr>
           `).join('')}
