@@ -1638,6 +1638,36 @@ function renderRulesCenter() {
 
     const editForm = document.querySelector('#rulesEditForm');
     const cancelBtn = document.querySelector('#cancelEditRulesBtn');
+    const saveBtn = document.querySelector('#saveRulesBtn');
+
+    function collectFormValues() {
+      const levelJumpThresholdInput = editForm.querySelector('input[name="levelJumpThreshold"]');
+      const levelJumpTimeWindowHoursInput = editForm.querySelector('input[name="levelJumpTimeWindowHours"]');
+      const highWindThresholdInput = editForm.querySelector('input[name="highWindThreshold"]');
+      const enableDuplicateDetectionInput = editForm.querySelector('input[name="enableDuplicateDetection"]');
+      
+      return {
+        levelJumpThreshold: Number(levelJumpThresholdInput.value),
+        levelJumpTimeWindowHours: Number(levelJumpTimeWindowHoursInput.value),
+        highWindThreshold: Number(highWindThresholdInput.value),
+        enableDuplicateDetection: enableDuplicateDetectionInput.checked
+      };
+    }
+
+    function validateAndSaveRules() {
+      const newRules = collectFormValues();
+      if (isNaN(newRules.levelJumpThreshold) || newRules.levelJumpThreshold <= 0 ||
+          isNaN(newRules.levelJumpTimeWindowHours) || newRules.levelJumpTimeWindowHours <= 0 ||
+          isNaN(newRules.highWindThreshold) || newRules.highWindThreshold <= 0) {
+        alert('所有数值阈值必须大于0，请检查输入。');
+        return false;
+      }
+      anomalyRules = newRules;
+      persistRules();
+      ruleEditingMode = false;
+      ruleDirtyForm = null;
+      return true;
+    }
 
     cancelBtn.addEventListener('click', () => {
       ruleEditingMode = false;
@@ -1647,33 +1677,23 @@ function renderRulesCenter() {
 
     editForm.addEventListener('submit', (e) => {
       e.preventDefault();
-      const fd = new FormData(editForm);
-      const newRules = {
-        levelJumpThreshold: Number(fd.get('levelJumpThreshold')),
-        levelJumpTimeWindowHours: Number(fd.get('levelJumpTimeWindowHours')),
-        highWindThreshold: Number(fd.get('highWindThreshold')),
-        enableDuplicateDetection: fd.get('enableDuplicateDetection') === 'on' || editForm.elements.enableDuplicateDetection.checked
-      };
-      if (newRules.levelJumpThreshold <= 0 || newRules.levelJumpTimeWindowHours <= 0 || newRules.highWindThreshold <= 0) {
-        alert('所有数值阈值必须大于0，请检查输入。');
-        return;
+      if (validateAndSaveRules()) {
+        render();
       }
-      anomalyRules = newRules;
-      persistRules();
-      ruleEditingMode = false;
-      ruleDirtyForm = null;
-      render();
     });
+
+    if (saveBtn) {
+      saveBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (validateAndSaveRules()) {
+          render();
+        }
+      });
+    }
 
     editForm.querySelectorAll('input').forEach((inp) => {
       inp.addEventListener('input', () => {
-        const fd = new FormData(editForm);
-        ruleDirtyForm = {
-          levelJumpThreshold: Number(fd.get('levelJumpThreshold') || anomalyRules.levelJumpThreshold),
-          levelJumpTimeWindowHours: Number(fd.get('levelJumpTimeWindowHours') || anomalyRules.levelJumpTimeWindowHours),
-          highWindThreshold: Number(fd.get('highWindThreshold') || anomalyRules.highWindThreshold),
-          enableDuplicateDetection: fd.get('enableDuplicateDetection') === 'on' || editForm.elements.enableDuplicateDetection.checked
-        };
+        ruleDirtyForm = collectFormValues();
       });
     });
   }

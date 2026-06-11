@@ -1726,7 +1726,10 @@ svg path:hover {
 }
 
 .rulesEditForm {
-  display: contents;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
 }
 
 @media (max-width: 600px) {
