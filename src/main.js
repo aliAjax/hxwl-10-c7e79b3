@@ -5,6 +5,7 @@ const stationStorageKey = 'hxwl-10-tide-stations';
 const snapshotStorageKey = 'hxwl-10-tide-snapshots';
 const opLogStorageKey = 'hxwl-10-tide-oplog';
 const weatherDictStorageKey = 'hxwl-10-weather-dict';
+const ruleStorageKey = 'hxwl-10-tide-rules';
 
 const seed = [
   { id: crypto.randomUUID(), place: '东极青浜', date: '2026-06-03', time: '05:40', level: 128, windDir: '东北', wind: 13, weather: '多云', note: '浪面平稳' },
@@ -55,11 +56,16 @@ let compareStartDate = '';
 let compareEndDate = '';
 let mapSelectedStationId = null;
 
-const anomalyConfig = {
+const defaultAnomalyRules = {
   levelJumpThreshold: 100,
   levelJumpTimeWindowHours: 6,
-  highWindThreshold: 20
+  highWindThreshold: 20,
+  enableDuplicateDetection: true
 };
+
+let anomalyRules = loadRules();
+let ruleEditingMode = false;
+let ruleDirtyForm = null;
 
 const compareColors = ['#0d9488', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316', '#6366f1'];
 
@@ -84,6 +90,7 @@ app.innerHTML = `
           <button class="ghost" id="downloadTemplate">📥 模板下载</button>
           <button class="ghost" id="showFieldHelp">📖 字段说明</button>
         </div>
+        <button class="ghost" id="rulesCenterBtn" style="background:#ecfeff;color:#155e75;border-color:#a5f3fc;">⚙️ 预警规则</button>
         <button class="ghost" id="exportCsv">导出CSV</button>
       </div>
     </section>
@@ -230,6 +237,17 @@ app.innerHTML = `
           <div class="tableWrap"><table><thead><tr><th>图标</th><th>天气名称</th><th>关联记录</th><th></th></tr></thead><tbody id="weatherDictRows"></tbody></table></div>
         </div>
       </div>
+    </section>
+
+    <section class="panel" id="rulesCenterSection">
+      <div class="panelHead">
+        <h2>⚙️ 潮汐预警规则中心</h2>
+        <div class="rulesHeadActions">
+          <span id="ruleStatusBadge" class="countBadge" style="background:#dcfce7;color:#166534;">使用当前配置</span>
+          <button class="ghost" id="resetRulesBtn" style="background:#fef3c7;color:#92400e;">↩️ 恢复默认规则</button>
+        </div>
+      </div>
+      <div id="rulesCenterBody" class="rulesCenterBody"></div>
     </section>
 
     <section class="panel" id="snapshotSection">
@@ -627,6 +645,16 @@ document.querySelector('#resetWeatherDictBtn').addEventListener('click', () => {
   }
 });
 
+document.querySelector('#rulesCenterBtn').addEventListener('click', scrollToRulesCenter);
+document.querySelector('#resetRulesBtn').addEventListener('click', () => {
+  if (confirm('确定要恢复默认预警规则吗？您自定义的阈值配置将被替换为系统默认值。')) {
+    resetRules();
+    ruleEditingMode = false;
+    ruleDirtyForm = null;
+    render();
+  }
+});
+
 snapshotForm.addEventListener('submit', (event) => {
   event.preventDefault();
   const formData = new FormData(snapshotForm);
@@ -694,6 +722,50 @@ function persistWeatherDict() {
 function resetWeatherDict() {
   weatherDict = weatherDictSeed.map(item => ({ ...item, id: crypto.randomUUID() }));
   persistWeatherDict();
+}
+
+function loadRules() {
+  try {
+    const stored = localStorage.getItem(ruleStorageKey);
+    if (!stored) {
+      return { ...defaultAnomalyRules };
+    }
+    const parsed = JSON.parse(stored);
+    return {
+      levelJumpThreshold: typeof parsed.levelJumpThreshold === 'number' ? parsed.levelJumpThreshold : defaultAnomalyRules.levelJumpThreshold,
+      levelJumpTimeWindowHours: typeof parsed.levelJumpTimeWindowHours === 'number' ? parsed.levelJumpTimeWindowHours : defaultAnomalyRules.levelJumpTimeWindowHours,
+      highWindThreshold: typeof parsed.highWindThreshold === 'number' ? parsed.highWindThreshold : defaultAnomalyRules.highWindThreshold,
+      enableDuplicateDetection: typeof parsed.enableDuplicateDetection === 'boolean' ? parsed.enableDuplicateDetection : defaultAnomalyRules.enableDuplicateDetection
+    };
+  } catch (e) {
+    return { ...defaultAnomalyRules };
+  }
+}
+
+function persistRules() {
+  localStorage.setItem(ruleStorageKey, JSON.stringify(anomalyRules));
+}
+
+function resetRules() {
+  anomalyRules = { ...defaultAnomalyRules };
+  persistRules();
+}
+
+function isDefaultRules() {
+  return anomalyRules.levelJumpThreshold === defaultAnomalyRules.levelJumpThreshold
+    && anomalyRules.levelJumpTimeWindowHours === defaultAnomalyRules.levelJumpTimeWindowHours
+    && anomalyRules.highWindThreshold === defaultAnomalyRules.highWindThreshold
+    && anomalyRules.enableDuplicateDetection === defaultAnomalyRules.enableDuplicateDetection;
+}
+
+function scrollToRulesCenter() {
+  const section = document.querySelector('#rulesCenterSection');
+  if (section) {
+    section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    section.style.transition = 'box-shadow 0.3s';
+    section.style.boxShadow = '0 0 0 3px rgba(20,184,166,0.4)';
+    setTimeout(() => { section.style.boxShadow = ''; }, 1500);
+  }
 }
 
 function getWeatherDictIcon(name) {
@@ -1442,6 +1514,171 @@ function renderOpLog() {
   `).join('');
 }
 
+function renderRulesCenter() {
+  const body = document.querySelector('#rulesCenterBody');
+  const statusBadge = document.querySelector('#ruleStatusBadge');
+  const resetBtn = document.querySelector('#resetRulesBtn');
+
+  if (!body) return;
+
+  if (statusBadge) {
+    if (isDefaultRules()) {
+      statusBadge.textContent = '使用默认配置';
+      statusBadge.style.background = '#e0f2fe';
+      statusBadge.style.color = '#075985';
+    } else {
+      statusBadge.textContent = '使用自定义配置';
+      statusBadge.style.background = '#fef3c7';
+      statusBadge.style.color = '#92400e';
+    }
+  }
+
+  if (resetBtn) {
+    resetBtn.disabled = isDefaultRules();
+    resetBtn.style.opacity = isDefaultRules() ? '0.5' : '1';
+    resetBtn.style.cursor = isDefaultRules() ? 'not-allowed' : 'pointer';
+  }
+
+  if (!ruleEditingMode) {
+    body.innerHTML = `
+      <div class="rulesGrid">
+        <div class="ruleCard jump">
+          <div class="ruleCardHead">
+            <span class="ruleIcon">📈</span>
+            <span class="ruleTitle">潮位跳变阈值</span>
+          </div>
+          <div class="ruleCardValue">≥ ${anomalyRules.levelJumpThreshold} cm</div>
+          <div class="ruleCardDesc">当同一地点相邻记录的潮位差超过该值时，判定为跳变异常</div>
+        </div>
+        <div class="ruleCard jump">
+          <div class="ruleCardHead">
+            <span class="ruleIcon">⏱️</span>
+            <span class="ruleTitle">跳变时间窗口</span>
+          </div>
+          <div class="ruleCardValue">≤ ${anomalyRules.levelJumpTimeWindowHours} 小时</div>
+          <div class="ruleCardDesc">判断潮位跳变的最大时间间隔，超过则不算短时间跳变</div>
+        </div>
+        <div class="ruleCard wind">
+          <div class="ruleCardHead">
+            <span class="ruleIcon">💨</span>
+            <span class="ruleTitle">高风速无备注阈值</span>
+          </div>
+          <div class="ruleCardValue">≥ ${anomalyRules.highWindThreshold} km/h</div>
+          <div class="ruleCardDesc">风速达到此阈值且备注为空时，判定为高风速无备注异常</div>
+        </div>
+        <div class="ruleCard duplicate">
+          <div class="ruleCardHead">
+            <span class="ruleIcon">🔁</span>
+            <span class="ruleTitle">重复记录检测</span>
+          </div>
+          <div class="ruleCardValue">${anomalyRules.enableDuplicateDetection ? '✅ 已开启' : '❌ 已关闭'}</div>
+          <div class="ruleCardDesc">同一地点同一时间存在多条记录时，判定为重复记录异常</div>
+        </div>
+      </div>
+      <div class="ruleActions">
+        <button class="primary" id="editRulesBtn">✏️ 编辑规则</button>
+        <span class="ruleHint">规则保存在浏览器本地（localStorage），修改后立即对所有视图生效</span>
+      </div>
+    `;
+    const editBtn = document.querySelector('#editRulesBtn');
+    if (editBtn) {
+      editBtn.addEventListener('click', () => {
+        ruleEditingMode = true;
+        ruleDirtyForm = { ...anomalyRules };
+        render();
+      });
+    }
+  } else {
+    const form = ruleDirtyForm || { ...anomalyRules };
+    body.innerHTML = `
+      <form class="rulesEditForm" id="rulesEditForm">
+        <div class="rulesGrid">
+          <div class="ruleCard edit jump">
+            <div class="ruleCardHead">
+              <span class="ruleIcon">📈</span>
+              <span class="ruleTitle">潮位跳变阈值 (cm)</span>
+            </div>
+            <input type="number" name="levelJumpThreshold" min="1" step="1" value="${form.levelJumpThreshold}" required />
+            <div class="ruleCardDesc">默认值：${defaultAnomalyRules.levelJumpThreshold} cm</div>
+          </div>
+          <div class="ruleCard edit jump">
+            <div class="ruleCardHead">
+              <span class="ruleIcon">⏱️</span>
+              <span class="ruleTitle">跳变时间窗口 (小时)</span>
+            </div>
+            <input type="number" name="levelJumpTimeWindowHours" min="0.1" step="0.5" value="${form.levelJumpTimeWindowHours}" required />
+            <div class="ruleCardDesc">默认值：${defaultAnomalyRules.levelJumpTimeWindowHours} 小时</div>
+          </div>
+          <div class="ruleCard edit wind">
+            <div class="ruleCardHead">
+              <span class="ruleIcon">💨</span>
+              <span class="ruleTitle">高风速无备注阈值 (km/h)</span>
+            </div>
+            <input type="number" name="highWindThreshold" min="1" step="1" value="${form.highWindThreshold}" required />
+            <div class="ruleCardDesc">默认值：${defaultAnomalyRules.highWindThreshold} km/h</div>
+          </div>
+          <div class="ruleCard edit duplicate">
+            <div class="ruleCardHead">
+              <span class="ruleIcon">🔁</span>
+              <span class="ruleTitle">重复记录检测开关</span>
+            </div>
+            <label class="ruleSwitch">
+              <input type="checkbox" name="enableDuplicateDetection" ${form.enableDuplicateDetection ? 'checked' : ''} />
+              <span class="ruleSwitchSlider"></span>
+            </label>
+            <div class="ruleCardDesc">默认：${defaultAnomalyRules.enableDuplicateDetection ? '开启' : '关闭'}</div>
+          </div>
+        </div>
+        <div class="ruleActions">
+          <button type="button" class="ghost" id="cancelEditRulesBtn">取消</button>
+          <button type="submit" class="primary" id="saveRulesBtn">💾 保存并应用规则</button>
+        </div>
+      </form>
+    `;
+
+    const editForm = document.querySelector('#rulesEditForm');
+    const cancelBtn = document.querySelector('#cancelEditRulesBtn');
+
+    cancelBtn.addEventListener('click', () => {
+      ruleEditingMode = false;
+      ruleDirtyForm = null;
+      render();
+    });
+
+    editForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const fd = new FormData(editForm);
+      const newRules = {
+        levelJumpThreshold: Number(fd.get('levelJumpThreshold')),
+        levelJumpTimeWindowHours: Number(fd.get('levelJumpTimeWindowHours')),
+        highWindThreshold: Number(fd.get('highWindThreshold')),
+        enableDuplicateDetection: fd.get('enableDuplicateDetection') === 'on' || editForm.elements.enableDuplicateDetection.checked
+      };
+      if (newRules.levelJumpThreshold <= 0 || newRules.levelJumpTimeWindowHours <= 0 || newRules.highWindThreshold <= 0) {
+        alert('所有数值阈值必须大于0，请检查输入。');
+        return;
+      }
+      anomalyRules = newRules;
+      persistRules();
+      ruleEditingMode = false;
+      ruleDirtyForm = null;
+      render();
+    });
+
+    editForm.querySelectorAll('input').forEach((inp) => {
+      inp.addEventListener('input', () => {
+        const fd = new FormData(editForm);
+        ruleDirtyForm = {
+          levelJumpThreshold: Number(fd.get('levelJumpThreshold') || anomalyRules.levelJumpThreshold),
+          levelJumpTimeWindowHours: Number(fd.get('levelJumpTimeWindowHours') || anomalyRules.levelJumpTimeWindowHours),
+          highWindThreshold: Number(fd.get('highWindThreshold') || anomalyRules.highWindThreshold),
+          enableDuplicateDetection: fd.get('enableDuplicateDetection') === 'on' || editForm.elements.enableDuplicateDetection.checked
+        };
+      });
+    });
+  }
+}
+
 function render() {
   document.querySelectorAll('.viewBtn').forEach((btn) => {
     btn.classList.toggle('active', btn.dataset.view === currentView);
@@ -1458,6 +1695,8 @@ function render() {
   document.querySelector('#compareViewSection').style.display = 'none';
   document.querySelector('#mapSection').style.display = '';
   document.querySelector('#stationSection').style.display = '';
+  document.querySelector('#weatherDictSection').style.display = '';
+  document.querySelector('#rulesCenterSection').style.display = '';
   document.querySelector('#snapshotSection').style.display = '';
   
   if (currentView === 'calendar') {
@@ -1597,6 +1836,7 @@ function render() {
   renderSnapshots();
   renderOpLog();
   renderStationMap();
+  renderRulesCenter();
 }
 
 function edit(id) {
@@ -1954,8 +2194,8 @@ function detectLevelJumpAnomalies(records) {
       const levelDiff = Math.abs(curr.level - prev.level);
       const timeDiffHours = getMinutesDiff(prev.date, prev.time, curr.date, curr.time) / 60;
 
-      if (timeDiffHours <= anomalyConfig.levelJumpTimeWindowHours && levelDiff >= anomalyConfig.levelJumpThreshold) {
-        const reason = `潮位跳变异常：${prev.level}cm → ${curr.level}cm（${levelDiff >= 0 ? '+' : ''}${levelDiff}cm），间隔${timeDiffHours.toFixed(1)}小时`;
+      if (timeDiffHours <= anomalyRules.levelJumpTimeWindowHours && levelDiff >= anomalyRules.levelJumpThreshold) {
+        const reason = `潮位跳变异常：${prev.level}cm → ${curr.level}cm（${levelDiff >= 0 ? '+' : ''}${levelDiff}cm），间隔${timeDiffHours.toFixed(1)}小时（阈值≥${anomalyRules.levelJumpThreshold}cm/${anomalyRules.levelJumpTimeWindowHours}h）`;
         if (!anomalies.has(prev.id)) anomalies.set(prev.id, []);
         if (!anomalies.has(curr.id)) anomalies.set(curr.id, []);
         anomalies.get(prev.id).push({ type: 'jump', reason });
@@ -1969,6 +2209,8 @@ function detectLevelJumpAnomalies(records) {
 
 function detectDuplicateAnomalies(records) {
   const anomalies = new Map();
+  if (!anomalyRules.enableDuplicateDetection) return anomalies;
+
   const keyMap = new Map();
 
   records.forEach(record => {
@@ -1997,8 +2239,8 @@ function detectHighWindNoNoteAnomalies(records) {
   const anomalies = new Map();
 
   records.forEach(record => {
-    if (record.wind >= anomalyConfig.highWindThreshold && (!record.note || record.note.trim() === '')) {
-      const reason = `高风速无备注异常：风速 ${record.wind}km/h（≥${anomalyConfig.highWindThreshold}km/h）但备注为空`;
+    if (record.wind >= anomalyRules.highWindThreshold && (!record.note || record.note.trim() === '')) {
+      const reason = `高风速无备注异常：风速 ${record.wind}km/h（≥${anomalyRules.highWindThreshold}km/h）但备注为空`;
       anomalies.set(record.id, [{ type: 'wind', reason }]);
     }
   });

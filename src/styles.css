@@ -1544,8 +1544,212 @@ svg path:hover {
   background: #f0faf8 !important;
 }
 
-.opRowLatest:hover {
-  background: #e4f5f1 !important;
+#rulesCenterSection {
+  margin-top: 18px;
+}
+
+.rulesHeadActions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.rulesHeadActions .ghost {
+  padding: 8px 12px;
+  font-size: 13px;
+}
+
+.rulesCenterBody {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.rulesGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 14px;
+}
+
+.ruleCard {
+  border-radius: 10px;
+  padding: 16px;
+  border: 1px solid #e0efec;
+  background: #fafdfc;
+  transition: all 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ruleCard:hover {
+  box-shadow: 0 4px 12px rgba(22, 76, 92, 0.08);
+  transform: translateY(-1px);
+}
+
+.ruleCard.jump {
+  border-left: 4px solid #dc2626;
+  background: linear-gradient(to right, #fff5f5, #fafdfc);
+}
+
+.ruleCard.wind {
+  border-left: 4px solid #7c3aed;
+  background: linear-gradient(to right, #faf5ff, #fafdfc);
+}
+
+.ruleCard.duplicate {
+  border-left: 4px solid #d97706;
+  background: linear-gradient(to right, #fffbeb, #fafdfc);
+}
+
+.ruleCard.edit {
+  background: white;
+}
+
+.ruleCardHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.ruleIcon {
+  font-size: 22px;
+}
+
+.ruleTitle {
+  font-weight: 600;
+  color: #17324d;
+  font-size: 14px;
+}
+
+.ruleCardValue {
+  font-size: 20px;
+  font-weight: 700;
+  color: #0d9488;
+}
+
+.ruleCardDesc {
+  font-size: 12px;
+  color: #64748b;
+  line-height: 1.5;
+}
+
+.ruleCard.edit input[type="number"] {
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 16px;
+  font-weight: 600;
+  color: #17324d;
+  width: 100%;
+  background: white;
+  transition: border-color 0.2s;
+}
+
+.ruleCard.edit input[type="number"]:focus {
+  outline: none;
+  border-color: #0d9488;
+  box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.15);
+}
+
+.ruleSwitch {
+  position: relative;
+  display: inline-block;
+  width: 48px;
+  height: 26px;
+}
+
+.ruleSwitch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.ruleSwitchSlider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: #cbd5e1;
+  transition: .3s;
+  border-radius: 26px;
+}
+
+.ruleSwitchSlider:before {
+  position: absolute;
+  content: "";
+  height: 20px;
+  width: 20px;
+  left: 3px;
+  bottom: 3px;
+  background: white;
+  transition: .3s;
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+
+.ruleSwitch input:checked + .ruleSwitchSlider {
+  background: #0d9488;
+}
+
+.ruleSwitch input:checked + .ruleSwitchSlider:before {
+  transform: translateX(22px);
+}
+
+.ruleActions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  justify-content: flex-end;
+  padding-top: 4px;
+  border-top: 1px solid #e0efec;
+  margin-top: 4px;
+  padding: 14px 0 0 0;
+}
+
+.ruleActions .primary {
+  width: auto;
+  padding: 10px 18px;
+}
+
+.ruleActions .ghost {
+  padding: 10px 18px;
+}
+
+.ruleHint {
+  margin-right: auto;
+  font-size: 12px;
+  color: #8899a6;
+}
+
+.rulesEditForm {
+  display: contents;
+}
+
+@media (max-width: 600px) {
+  .rulesGrid {
+    grid-template-columns: 1fr;
+  }
+  
+  .ruleActions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .ruleActions .primary,
+  .ruleActions .ghost {
+    width: 100%;
+  }
+  
+  .ruleHint {
+    margin-right: 0;
+    text-align: center;
+    order: -1;
+    margin-bottom: 8px;
+  }
 }
 
 #oplogSection table {
