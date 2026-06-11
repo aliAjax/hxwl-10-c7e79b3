@@ -55,6 +55,12 @@ let compareSelectedPlaces = [];
 let compareStartDate = '';
 let compareEndDate = '';
 let mapSelectedStationId = null;
+let reportSelectedPlaces = [];
+let reportStartDate = '';
+let reportEndDate = '';
+let reportType = 'daily';
+let reportGenerated = false;
+let reportCache = null;
 
 const defaultAnomalyRules = {
   levelJumpThreshold: 100,
@@ -81,6 +87,7 @@ app.innerHTML = `
           <button class="viewBtn active" data-view="list">📋 列表视图</button>
           <button class="viewBtn" data-view="calendar">📅 观测日历</button>
           <button class="viewBtn" data-view="compare">📊 多地点对比</button>
+          <button class="viewBtn" data-view="report">📄 报告生成</button>
         </div>
       </div>
       <div class="actions">
@@ -367,6 +374,73 @@ app.innerHTML = `
               <span class="chartSubtitle">四分位数与异常值</span>
             </div>
             <div id="boxplotCompareChart" class="chart wideChart"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" id="reportViewSection" style="display:none;">
+      <div class="panelHead">
+        <h2>📄 观测报告生成</h2>
+        <span id="reportStatusBadge" class="countBadge"></span>
+      </div>
+
+      <div class="reportLayout">
+        <div class="reportControls">
+          <div class="panel form">
+            <h3>报告类型</h3>
+            <div class="reportTypeGroup">
+              <label class="reportTypeOption">
+                <input type="radio" name="reportType" value="daily" ${reportType === 'daily' ? 'checked' : ''} />
+                <span>📆 日报</span>
+              </label>
+              <label class="reportTypeOption">
+                <input type="radio" name="reportType" value="weekly" ${reportType === 'weekly' ? 'checked' : ''} />
+                <span>📅 周报</span>
+              </label>
+            </div>
+          </div>
+
+          <div class="panel form">
+            <h3>选择日期范围</h3>
+            <div class="pair">
+              <div>
+                <label class="fieldLabel">开始日期</label>
+                <input type="date" id="reportStartDate" />
+              </div>
+              <div>
+                <label class="fieldLabel">结束日期</label>
+                <input type="date" id="reportEndDate" />
+              </div>
+            </div>
+            <div class="reportQuickRange">
+              <button type="button" class="ghost" data-range="today">今天</button>
+              <button type="button" class="ghost" data-range="yesterday">昨天</button>
+              <button type="button" class="ghost" data-range="7days">近7天</button>
+              <button type="button" class="ghost" data-range="30days">近30天</button>
+            </div>
+          </div>
+
+          <div class="panel form">
+            <h3>选择观测站点</h3>
+            <div class="reportPlaceCheckboxes" id="reportPlaceCheckboxes"></div>
+            <p class="compareHint">至少选择1个站点</p>
+          </div>
+
+          <div class="panel form">
+            <div class="reportActions">
+              <button class="primary" id="generateReportBtn">📊 生成报告</button>
+              <button class="ghost" id="resetReportBtn">重置条件</button>
+            </div>
+            <button class="primary exportBtn" id="exportReportHtmlBtn" style="display:none; background:#1e40af;">📥 导出为HTML</button>
+          </div>
+        </div>
+
+        <div class="reportContent" id="reportContent">
+          <div class="reportEmpty">
+            <div class="reportEmptyIcon">📋</div>
+            <h3>尚未生成报告</h3>
+            <p>请在左侧选择报告类型、日期范围和观测站点，然后点击「生成报告」</p>
           </div>
         </div>
       </div>
@@ -694,6 +768,75 @@ document.querySelector('#clearMapFilter').addEventListener('click', () => {
   if (placeFilter) placeFilter.value = '';
   render();
 });
+
+document.querySelectorAll('input[name="reportType"]').forEach((radio) => {
+  radio.addEventListener('change', (e) => {
+    reportType = e.target.value;
+  });
+});
+
+document.querySelectorAll('[data-range]').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    const range = btn.dataset.range;
+    const today = new Date();
+    let start = new Date(today);
+    let end = new Date(today);
+    if (range === 'today') {
+    } else if (range === 'yesterday') {
+      start.setDate(start.getDate() - 1);
+      end = new Date(start);
+    } else if (range === '7days') {
+      start.setDate(start.getDate() - 6);
+    } else if (range === '30days') {
+      start.setDate(start.getDate() - 29);
+    }
+    reportStartDate = start.toISOString().slice(0, 10);
+    reportEndDate = end.toISOString().slice(0, 10);
+    document.querySelector('#reportStartDate').value = reportStartDate;
+    document.querySelector('#reportEndDate').value = reportEndDate;
+  });
+});
+
+document.querySelector('#reportStartDate').addEventListener('change', (e) => {
+  reportStartDate = e.target.value;
+});
+
+document.querySelector('#reportEndDate').addEventListener('change', (e) => {
+  reportEndDate = e.target.value;
+});
+
+document.querySelector('#generateReportBtn').addEventListener('click', () => {
+  reportStartDate = document.querySelector('#reportStartDate').value;
+  reportEndDate = document.querySelector('#reportEndDate').value;
+  if (!reportStartDate || !reportEndDate) {
+    alert('请选择日期范围');
+    return;
+  }
+  if (reportStartDate > reportEndDate) {
+    alert('开始日期不能晚于结束日期');
+    return;
+  }
+  if (reportSelectedPlaces.length === 0) {
+    alert('请至少选择一个站点');
+    return;
+  }
+  reportGenerated = true;
+  reportCache = null;
+  render();
+});
+
+document.querySelector('#resetReportBtn').addEventListener('click', () => {
+  reportSelectedPlaces = [];
+  reportStartDate = '';
+  reportEndDate = '';
+  reportType = 'daily';
+  reportGenerated = false;
+  reportCache = null;
+  initReportDefaults();
+  render();
+});
+
+document.querySelector('#exportReportHtmlBtn').addEventListener('click', exportReportAsHtml);
 
 function load() {
   return JSON.parse(localStorage.getItem(storageKey) || 'null') || seed;
@@ -1708,11 +1851,17 @@ function render() {
     renderCompareView();
     return;
   }
+
+  if (currentView === 'report') {
+    renderReportView();
+    return;
+  }
   
   document.querySelector('#formSection').style.display = '';
   document.querySelector('#listViewSection').style.display = currentView === 'list' ? '' : 'none';
   document.querySelector('#calendarViewSection').style.display = currentView === 'calendar' ? '' : 'none';
   document.querySelector('#compareViewSection').style.display = 'none';
+  document.querySelector('#reportViewSection').style.display = 'none';
   document.querySelector('#mapSection').style.display = '';
   document.querySelector('#stationSection').style.display = '';
   document.querySelector('#weatherDictSection').style.display = '';
@@ -3456,6 +3605,920 @@ function renderCompareView() {
   drawWeatherDonutChart('#weatherDonutChart', stats, selectedPlaces);
   drawBoxplotChart('#boxplotCompareChart', stats, selectedPlaces);
   renderOpLog();
+}
+
+function initReportDefaults() {
+  const places = [...new Set(records.map((record) => record.place))].sort();
+  if (places.length > 0 && reportSelectedPlaces.length === 0) {
+    reportSelectedPlaces = places.slice(0, 1);
+  }
+  if (!reportStartDate || !reportEndDate) {
+    const dates = records.map((r) => r.date).sort();
+    if (dates.length > 0) {
+      reportStartDate = reportStartDate || dates[0];
+      reportEndDate = reportEndDate || dates[dates.length - 1];
+    } else {
+      const today = new Date().toISOString().slice(0, 10);
+      reportStartDate = reportStartDate || today;
+      reportEndDate = reportEndDate || today;
+    }
+  }
+  const startInput = document.querySelector('#reportStartDate');
+  const endInput = document.querySelector('#reportEndDate');
+  if (startInput) startInput.value = reportStartDate;
+  if (endInput) endInput.value = reportEndDate;
+  document.querySelectorAll('input[name="reportType"]').forEach((radio) => {
+    radio.checked = radio.value === reportType;
+  });
+}
+
+function renderReportPlaceCheckboxes() {
+  const container = document.querySelector('#reportPlaceCheckboxes');
+  const places = [...new Set(records.map((record) => record.place))].sort();
+
+  if (places.length === 0) {
+    container.innerHTML = '<p class="empty">暂无观测站点数据</p>';
+    return;
+  }
+
+  container.innerHTML = places.map((place) => {
+    const placeInfo = getPlaceDateRange(place);
+    const isChecked = reportSelectedPlaces.includes(place);
+    const recordCount = placeInfo ? placeInfo.count : 0;
+    return `
+      <label class="placeCheckbox">
+        <input type="checkbox" data-report-place="${escapeHtml(place)}" ${isChecked ? 'checked' : ''} />
+        <span class="checkboxLabel">${escapeHtml(place)}</span>
+        <span class="recordCount">${recordCount}条</span>
+      </label>
+    `;
+  }).join('');
+
+  container.querySelectorAll('input[type="checkbox"]').forEach((cb) => {
+    cb.addEventListener('change', (e) => {
+      const place = e.target.dataset.reportPlace;
+      if (e.target.checked) {
+        if (!reportSelectedPlaces.includes(place)) {
+          reportSelectedPlaces.push(place);
+        }
+      } else {
+        reportSelectedPlaces = reportSelectedPlaces.filter((p) => p !== place);
+      }
+    });
+  });
+}
+
+function generateReportData() {
+  if (reportCache) return reportCache;
+
+  const selectedPlaces = reportSelectedPlaces.filter((p) =>
+    records.some((r) => r.place === p)
+  );
+
+  if (selectedPlaces.length === 0) {
+    reportCache = { error: 'noPlaces', selectedPlaces: [] };
+    return reportCache;
+  }
+
+  const overlapping = getOverlappingDateRange(selectedPlaces);
+  let effectiveStart = reportStartDate;
+  let effectiveEnd = reportEndDate;
+
+  if (overlapping) {
+    if (!effectiveStart || effectiveStart < overlapping.start) {
+      effectiveStart = overlapping.start;
+    }
+    if (!effectiveEnd || effectiveEnd > overlapping.end) {
+      effectiveEnd = overlapping.end;
+    }
+  }
+
+  if (!effectiveStart || !effectiveEnd || effectiveStart > effectiveEnd) {
+    reportCache = {
+      error: 'noOverlap',
+      selectedPlaces,
+      placeRanges: selectedPlaces.map((p) => ({ place: p, range: getPlaceDateRange(p) }))
+    };
+    return reportCache;
+  }
+
+  const scopedRecords = records.filter(
+    (r) =>
+      selectedPlaces.includes(r.place) &&
+      r.date >= effectiveStart &&
+      r.date <= effectiveEnd
+  );
+
+  if (scopedRecords.length === 0) {
+    reportCache = {
+      error: 'emptyData',
+      selectedPlaces,
+      effectiveStart,
+      effectiveEnd
+    };
+    return reportCache;
+  }
+
+  const anomalies = detectAllAnomalies(scopedRecords);
+  const anomalyRecords = scopedRecords.filter((r) => anomalies.has(r.id));
+
+  const stats = calculateCompareStats(selectedPlaces, effectiveStart, effectiveEnd);
+
+  const levels = scopedRecords.map((r) => r.level);
+  const winds = scopedRecords.map((r) => r.wind);
+
+  const weatherCount = {};
+  scopedRecords.forEach((r) => {
+    weatherCount[r.weather] = (weatherCount[r.weather] || 0) + 1;
+  });
+  const weatherDistribution = Object.entries(weatherCount)
+    .map(([name, count]) => ({ name, count, icon: getWeatherDictIcon(name) }))
+    .sort((a, b) => b.count - a.count);
+
+  const totalRecords = scopedRecords.length;
+  const maxLevel = Math.max(...levels);
+  const avgWind = avg(winds);
+  const anomalyCount = anomalyRecords.length;
+
+  const anomalyByType = { jump: 0, duplicate: 0, wind: 0 };
+  anomalies.forEach((anomalyList) => {
+    anomalyList.forEach((a) => {
+      if (anomalyByType[a.type] !== undefined) {
+        anomalyByType[a.type]++;
+      }
+    });
+  });
+
+  const groupedByPlace = {};
+  selectedPlaces.forEach((place) => {
+    const placeRecords = scopedRecords.filter((r) => r.place === place);
+    const placeLevels = placeRecords.map((r) => r.level);
+    const placeWinds = placeRecords.map((r) => r.wind);
+    groupedByPlace[place] = {
+      recordCount: placeRecords.length,
+      maxLevel: placeLevels.length ? Math.max(...placeLevels) : 0,
+      avgLevel: placeLevels.length ? avg(placeLevels) : 0,
+      avgWind: placeWinds.length ? avg(placeWinds) : 0
+    };
+  });
+
+  reportCache = {
+    error: null,
+    selectedPlaces,
+    effectiveStart,
+    effectiveEnd,
+    totalRecords,
+    maxLevel,
+    avgWind,
+    anomalyCount,
+    anomalyByType,
+    anomalyRecords,
+    anomalies,
+    weatherDistribution,
+    stats,
+    groupedByPlace,
+    scopedRecords,
+    reportType
+  };
+
+  return reportCache;
+}
+
+function renderReportView() {
+  document.querySelector('#formSection').style.display = 'none';
+  document.querySelector('#calendarViewSection').style.display = 'none';
+  document.querySelector('#listViewSection').style.display = 'none';
+  document.querySelector('#mapSection').style.display = 'none';
+  document.querySelector('#stationSection').style.display = 'none';
+  document.querySelector('#snapshotSection').style.display = 'none';
+  document.querySelector('#weatherDictSection').style.display = 'none';
+  document.querySelector('#rulesCenterSection').style.display = 'none';
+  document.querySelector('#compareViewSection').style.display = 'none';
+  document.querySelector('#oplogSection').style.display = '';
+  document.querySelector('#reportViewSection').style.display = '';
+
+  initReportDefaults();
+  renderReportPlaceCheckboxes();
+
+  const content = document.querySelector('#reportContent');
+  const statusBadge = document.querySelector('#reportStatusBadge');
+  const exportBtn = document.querySelector('#exportReportHtmlBtn');
+
+  if (!reportGenerated) {
+    statusBadge.textContent = '';
+    exportBtn.style.display = 'none';
+    content.innerHTML = `
+      <div class="reportEmpty">
+        <div class="reportEmptyIcon">📋</div>
+        <h3>尚未生成报告</h3>
+        <p>请在左侧选择报告类型、日期范围和观测站点，然后点击「生成报告」</p>
+      </div>
+    `;
+    renderOpLog();
+    return;
+  }
+
+  const data = generateReportData();
+  exportBtn.style.display = data.error ? 'none' : 'block';
+
+  if (data.error === 'noPlaces') {
+    statusBadge.textContent = '缺少站点';
+    statusBadge.className = 'countBadge compareQualityError';
+    content.innerHTML = `
+      <div class="reportEmpty">
+        <div class="reportEmptyIcon">⚠️</div>
+        <h3>未选择有效站点</h3>
+        <p>请在左侧至少选择一个有观测记录的站点</p>
+      </div>
+    `;
+    renderOpLog();
+    return;
+  }
+
+  if (data.error === 'noOverlap') {
+    statusBadge.textContent = '日期不重叠';
+    statusBadge.className = 'countBadge compareQualityError';
+    const ranges = data.placeRanges.map((pr) => {
+      if (pr.range) {
+        return `<div class="compareDateRangeItem"><strong>${escapeHtml(pr.place)}</strong>：${pr.range.min} ~ ${pr.range.max}（${pr.range.count}条记录）</div>`;
+      }
+      return `<div class="compareDateRangeItem"><strong>${escapeHtml(pr.place)}</strong>：无数据</div>`;
+    }).join('');
+    content.innerHTML = `
+      <div class="reportEmpty">
+        <div class="reportEmptyIcon">📅</div>
+        <h3>所选站点在指定日期范围内无共同观测数据</h3>
+        <div class="compareDateRangeList">${ranges}</div>
+        <p>请调整日期范围或更换站点</p>
+      </div>
+    `;
+    renderOpLog();
+    return;
+  }
+
+  if (data.error === 'emptyData') {
+    statusBadge.textContent = '无数据';
+    statusBadge.className = 'countBadge compareQualityError';
+    content.innerHTML = `
+      <div class="reportEmpty">
+        <div class="reportEmptyIcon">📭</div>
+        <h3>日期范围内无观测记录</h3>
+        <p>所选站点在 ${data.effectiveStart} 至 ${data.effectiveEnd} 期间没有任何观测记录</p>
+        <p>请调整日期范围或选择其他站点</p>
+      </div>
+    `;
+    renderOpLog();
+    return;
+  }
+
+  statusBadge.textContent = '报告已生成';
+  statusBadge.className = 'countBadge compareQualityGood';
+
+  const {
+    selectedPlaces,
+    effectiveStart,
+    effectiveEnd,
+    totalRecords,
+    maxLevel,
+    avgWind,
+    anomalyCount,
+    anomalyByType,
+    anomalyRecords,
+    anomalies,
+    weatherDistribution,
+    groupedByPlace,
+    reportType
+  } = data;
+
+  const reportTitle = reportType === 'daily' ? '潮汐观测日报' : '潮汐观测周报';
+  const dateRangeText = `${effectiveStart} 至 ${effectiveEnd}`;
+  const placesText = selectedPlaces.join('、');
+
+  let anomalySummaryHtml = '';
+  if (anomalyCount > 0) {
+    const topAnomalies = anomalyRecords.slice(0, 5).map((r) => {
+      const recordAnomalies = anomalies.get(r.id) || [];
+      const anomalyBadges = recordAnomalies.map((a) =>
+        `<span class="${getAnomalyBadgeClass(a.type)}">${getAnomalyTypeLabel(a.type)}</span>`
+      ).join(' ');
+      return `
+        <tr>
+          <td>${escapeHtml(r.date)} ${escapeHtml(r.time)}</td>
+          <td>${escapeHtml(r.place)}</td>
+          <td>${r.level}cm</td>
+          <td>${escapeHtml(r.windDir)} ${r.wind}km/h</td>
+          <td>${anomalyBadges}</td>
+          <td>${escapeHtml(recordAnomalies[0]?.reason || '')}</td>
+        </tr>
+      `;
+    }).join('');
+
+    anomalySummaryHtml = `
+      <div class="reportSection">
+        <div class="reportSectionHead">
+          <h3>⚠️ 异常记录摘要</h3>
+          <span class="countBadge" style="background:#fee2e2;color:#dc2626;">${anomalyCount} 条异常</span>
+        </div>
+        <div class="anomalyTypeSummary">
+          <span class="anomalyBadge jump">潮位跳变: ${anomalyByType.jump || 0}条</span>
+          <span class="anomalyBadge duplicate">重复记录: ${anomalyByType.duplicate || 0}条</span>
+          <span class="anomalyBadge wind">高风速无备注: ${anomalyByType.wind || 0}条</span>
+        </div>
+        <div class="tableWrap">
+          <table>
+            <thead>
+              <tr><th>时间</th><th>地点</th><th>潮位</th><th>风</th><th>异常类型</th><th>详情</th></tr>
+            </thead>
+            <tbody>${topAnomalies}</tbody>
+          </table>
+        </div>
+        ${anomalyRecords.length > 5 ? `<p class="reportMore">...还有 ${anomalyRecords.length - 5} 条异常记录</p>` : ''}
+      </div>
+    `;
+  } else {
+    anomalySummaryHtml = `
+      <div class="reportSection">
+        <div class="reportSectionHead">
+          <h3>⚠️ 异常记录摘要</h3>
+          <span class="countBadge" style="background:#dcfce7;color:#166534;">无异常</span>
+        </div>
+        <p class="reportNoAnomaly">✅ 在选定的时间范围内，未检测到任何异常记录。数据质量良好。</p>
+      </div>
+    `;
+  }
+
+  const weatherHtml = weatherDistribution.map((w) => {
+    const pct = Math.round((w.count / totalRecords) * 100);
+    return `
+      <div class="weatherBarRow">
+        <div class="weatherBarLabel">
+          <span class="weatherBarIcon">${escapeHtml(w.icon)}</span>
+          <span>${escapeHtml(w.name)}</span>
+        </div>
+        <div class="weatherBarTrack">
+          <div class="weatherBarFill" style="width: ${pct}%;"></div>
+        </div>
+        <div class="weatherBarValue">${w.count}次 (${pct}%)</div>
+      </div>
+    `;
+  }).join('');
+
+  const placeStatsHtml = selectedPlaces.map((place) => {
+    const ps = groupedByPlace[place];
+    return `
+      <div class="reportPlaceStat">
+        <div class="reportPlaceName">${escapeHtml(place)}</div>
+        <div class="reportPlaceMetrics">
+          <div><span>记录数</span><strong>${ps.recordCount}</strong></div>
+          <div><span>最高潮位</span><strong>${ps.maxLevel}cm</strong></div>
+          <div><span>平均潮位</span><strong>${Math.round(ps.avgLevel)}cm</strong></div>
+          <div><span>平均风速</span><strong>${ps.avgWind.toFixed(1)}km/h</strong></div>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  const trendChartData = generateTrendChartData(data);
+  const donutChartSvg = generateWeatherDonutForReport(data);
+
+  content.innerHTML = `
+    <div class="reportPreview" id="reportPreview">
+      <div class="reportHeader">
+        <h1>${reportTitle}</h1>
+        <div class="reportMeta">
+          <span><strong>报告期：</strong>${dateRangeText}</span>
+          <span><strong>观测站点：</strong>${placesText}</span>
+          <span><strong>生成时间：</strong>${new Date().toLocaleString('zh-CN')}</span>
+        </div>
+      </div>
+
+      <div class="reportSection">
+        <h3>📊 核心指标</h3>
+        <div class="reportStats">
+          <div class="reportStatCard">
+            <span class="reportStatLabel">观测记录数</span>
+            <strong class="reportStatValue">${totalRecords}</strong>
+            <span class="reportStatUnit">条</span>
+          </div>
+          <div class="reportStatCard reportStatCard-teal">
+            <span class="reportStatLabel">最高潮位</span>
+            <strong class="reportStatValue">${maxLevel}</strong>
+            <span class="reportStatUnit">cm</span>
+          </div>
+          <div class="reportStatCard reportStatCard-blue">
+            <span class="reportStatLabel">平均风速</span>
+            <strong class="reportStatValue">${avgWind.toFixed(1)}</strong>
+            <span class="reportStatUnit">km/h</span>
+          </div>
+          <div class="reportStatCard ${anomalyCount > 0 ? 'reportStatCard-red' : 'reportStatCard-green'}">
+            <span class="reportStatLabel">异常记录</span>
+            <strong class="reportStatValue">${anomalyCount}</strong>
+            <span class="reportStatUnit">条</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="reportSection">
+        <h3>📍 各站点统计</h3>
+        <div class="reportPlaceStats">${placeStatsHtml}</div>
+      </div>
+
+      <div class="reportSection">
+        <div class="reportSectionHead">
+          <h3>📈 潮位趋势变化</h3>
+          <span class="chartSubtitle">每日平均潮位</span>
+        </div>
+        <div class="reportChart">${trendChartData}</div>
+      </div>
+
+      <div class="reportTwoCol">
+        <div class="reportSection">
+          <h3>🌤️ 天气分布</h3>
+          <div class="reportWeatherBars">${weatherHtml}</div>
+        </div>
+        <div class="reportSection">
+          <div class="reportSectionHead">
+            <h3>🥧 天气分布环形图</h3>
+            <span class="chartSubtitle">各天气类型占比</span>
+          </div>
+          <div class="reportChart reportChartSmall">${donutChartSvg}</div>
+        </div>
+      </div>
+
+      ${anomalySummaryHtml}
+
+      <div class="reportFooter">
+        <p>本报告由 hxwl-10 潮汐观察系统自动生成 · 数据来源于本地观测记录</p>
+      </div>
+    </div>
+  `;
+
+  renderOpLog();
+}
+
+function generateTrendChartData(data) {
+  const { selectedPlaces, effectiveStart, effectiveEnd, stats } = data;
+  const allDates = getDatesInRange(effectiveStart, effectiveEnd);
+  if (allDates.length === 0) return '<p class="empty">暂无趋势数据</p>';
+
+  const allLevels = [];
+  selectedPlaces.forEach((place) => {
+    const s = stats[place];
+    if (s && s.dailyRecords) {
+      s.dailyRecords.forEach((dayRecords) => {
+        dayRecords.forEach((r) => allLevels.push(r.level));
+      });
+    }
+  });
+
+  if (allLevels.length === 0) return '<p class="empty">暂无潮位数据</p>';
+
+  const maxLevel = Math.max(...allLevels) * 1.1;
+  const minLevel = Math.min(...allLevels) * 0.9;
+  const levelRange = maxLevel - minLevel || 1;
+
+  const chartWidth = 700;
+  const chartHeight = 260;
+  const padding = { top: 30, right: 20, bottom: 50, left: 55 };
+  const innerWidth = chartWidth - padding.left - padding.right;
+  const innerHeight = chartHeight - padding.top - padding.bottom;
+
+  function getX(dateStr) {
+    const idx = allDates.indexOf(dateStr);
+    if (idx === -1) return null;
+    return padding.left + (idx / Math.max(allDates.length - 1, 1)) * innerWidth;
+  }
+
+  function getY(level) {
+    return padding.top + innerHeight - ((level - minLevel) / levelRange) * innerHeight;
+  }
+
+  let lines = '';
+  let dots = '';
+  let legend = '';
+
+  selectedPlaces.forEach((place, pIdx) => {
+    const s = stats[place];
+    if (!s) return;
+    const color = compareColors[pIdx % compareColors.length];
+
+    const dailyAvgs = [];
+    allDates.forEach((date) => {
+      const dayRecords = s.dailyRecords.get(date);
+      if (dayRecords && dayRecords.length > 0) {
+        const avgVal = avg(dayRecords.map((r) => r.level));
+        dailyAvgs.push({ date, value: avgVal });
+      }
+    });
+
+    if (dailyAvgs.length === 0) return;
+
+    let points = '';
+    dailyAvgs.forEach((d) => {
+      const x = getX(d.date);
+      const y = getY(d.value);
+      if (x !== null) {
+        points += `${x},${y} `;
+        dots += `<circle cx="${x}" cy="${y}" r="4" fill="${color}" stroke="white" stroke-width="1.5"><title>${escapeHtml(place)} · ${d.date} · ${Math.round(d.value)}cm</title></circle>`;
+      }
+    });
+
+    if (points.trim()) {
+      lines += `<polyline points="${points.trim()}" fill="none" stroke="${color}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>`;
+    }
+
+    legend += `
+      <g transform="translate(${padding.left + pIdx * 120}, 10)">
+        <line x1="0" y1="6" x2="18" y2="6" stroke="${color}" stroke-width="2.5"/>
+        <circle cx="9" cy="6" r="3.5" fill="${color}" stroke="white" stroke-width="1"/>
+        <text x="28" y="10" class="legendText" style="font-size:11px;">${escapeHtml(place)}</text>
+      </g>
+    `;
+  });
+
+  const yTicks = 4;
+  let yAxis = '';
+  for (let i = 0; i <= yTicks; i++) {
+    const value = minLevel + (levelRange / yTicks) * (yTicks - i);
+    const y = getY(value);
+    yAxis += `<line x1="${padding.left}" y1="${y}" x2="${chartWidth - padding.right}" y2="${y}" stroke="#e0efec" stroke-width="1"/>`;
+    yAxis += `<text x="${padding.left - 6}" y="${y + 4}" text-anchor="end" class="chartLabel" style="font-size:11px;">${Math.round(value)}cm</text>`;
+  }
+
+  let xLabels = '';
+  const labelStep = Math.max(1, Math.floor(allDates.length / 6));
+  allDates.forEach((date, idx) => {
+    if (idx % labelStep === 0 || idx === allDates.length - 1) {
+      const x = getX(date);
+      if (x !== null) {
+        xLabels += `<text x="${x}" y="${chartHeight - 30}" text-anchor="middle" class="chartLabel" style="font-size:11px;">${date.slice(5)}</text>`;
+      }
+    }
+  });
+
+  return `
+    <svg viewBox="0 0 ${chartWidth} ${chartHeight}" style="width:100%;height:auto;" xmlns="http://www.w3.org/2000/svg">
+      ${yAxis}
+      ${lines}
+      ${dots}
+      ${xLabels}
+      ${legend}
+    </svg>
+  `;
+}
+
+function generateWeatherDonutForReport(data) {
+  const { weatherDistribution, totalRecords } = data;
+  if (weatherDistribution.length === 0) return '<p class="empty">暂无天气数据</p>';
+
+  const weatherColors = {
+    '晴': '#fbbf24', '多云': '#94a3b8', '阴': '#64748b',
+    '小雨': '#60a5fa', '中雨': '#3b82f6', '大雨': '#1d4ed8',
+    '雷阵雨': '#7c3aed', '雪': '#e0e7ff', '雾': '#9ca3af', '大风': '#8b5cf6'
+  };
+
+  const chartWidth = 320;
+  const chartHeight = 240;
+  const centerX = chartWidth / 2;
+  const centerY = chartHeight / 2 - 10;
+  const outerRadius = 80;
+  const innerRadius = 48;
+
+  let currentAngle = -Math.PI / 2;
+  let segments = '';
+  let legend = '';
+
+  weatherDistribution.forEach((w, idx) => {
+    const count = w.count;
+    if (count === 0) return;
+
+    const angle = (count / totalRecords) * Math.PI * 2;
+    const endAngle = currentAngle + angle;
+    const color = weatherColors[w.name] || '#999';
+
+    const x1 = centerX + outerRadius * Math.cos(currentAngle);
+    const y1 = centerY + outerRadius * Math.sin(currentAngle);
+    const x2 = centerX + outerRadius * Math.cos(endAngle);
+    const y2 = centerY + outerRadius * Math.sin(endAngle);
+    const x3 = centerX + innerRadius * Math.cos(endAngle);
+    const y3 = centerY + innerRadius * Math.sin(endAngle);
+    const x4 = centerX + innerRadius * Math.cos(currentAngle);
+    const y4 = centerY + innerRadius * Math.sin(currentAngle);
+
+    const largeArc = angle > Math.PI ? 1 : 0;
+    const pct = Math.round((count / totalRecords) * 100);
+
+    const path = `M ${x1} ${y1} A ${outerRadius} ${outerRadius} 0 ${largeArc} 1 ${x2} ${y2} L ${x3} ${y3} A ${innerRadius} ${innerRadius} 0 ${largeArc} 0 ${x4} ${y4} Z`;
+
+    segments += `<path d="${path}" fill="${color}"><title>${escapeHtml(w.name)}: ${count}次 (${pct}%)</title></path>`;
+
+    currentAngle = endAngle;
+
+    const legendY = chartHeight - 20 - Math.floor(idx / 3) * 20;
+    const legendX = 20 + (idx % 3) * 100;
+    legend += `
+      <g transform="translate(${legendX}, ${legendY})">
+        <rect x="0" y="0" width="10" height="10" fill="${color}" rx="2"/>
+        <text x="15" y="9" class="legendText" style="font-size:11px;">${escapeHtml(w.icon)} ${escapeHtml(w.name)} ${pct}%</text>
+      </g>
+    `;
+  });
+
+  return `
+    <svg viewBox="0 0 ${chartWidth} ${chartHeight}" style="width:100%;height:auto;" xmlns="http://www.w3.org/2000/svg">
+      ${segments}
+      <circle cx="${centerX}" cy="${centerY}" r="${innerRadius}" fill="white"/>
+      <text x="${centerX}" y="${centerY - 5}" text-anchor="middle" class="chartValue" style="font-size:18px;font-weight:700;">${totalRecords}</text>
+      <text x="${centerX}" y="${centerY + 12}" text-anchor="middle" class="chartLabel" style="font-size:11px;">条记录</text>
+      ${legend}
+    </svg>
+  `;
+}
+
+function exportReportAsHtml() {
+  const preview = document.querySelector('#reportPreview');
+  if (!preview) {
+    alert('请先生成报告');
+    return;
+  }
+
+  const reportStyles = `
+    <style>
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+        background: #f0f9f7;
+        color: #17324d;
+        padding: 40px 20px;
+        line-height: 1.6;
+      }
+      .reportPreview {
+        max-width: 900px;
+        margin: 0 auto;
+        background: white;
+        border-radius: 12px;
+        padding: 40px;
+        box-shadow: 0 10px 40px rgba(22, 76, 92, 0.1);
+      }
+      .reportHeader {
+        border-bottom: 3px solid #0d9488;
+        padding-bottom: 20px;
+        margin-bottom: 28px;
+      }
+      .reportHeader h1 {
+        font-size: 28px;
+        color: #0d9488;
+        margin-bottom: 12px;
+      }
+      .reportMeta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 20px;
+        font-size: 14px;
+        color: #557084;
+      }
+      .reportSection {
+        margin-bottom: 28px;
+      }
+      .reportSection h3 {
+        font-size: 17px;
+        color: #17324d;
+        margin-bottom: 16px;
+        padding-left: 12px;
+        border-left: 4px solid #0d9488;
+      }
+      .reportSectionHead {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 16px;
+      }
+      .reportSectionHead h3 {
+        margin-bottom: 0;
+      }
+      .reportStats {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 16px;
+      }
+      .reportStatCard {
+        background: #f8fafb;
+        border-radius: 10px;
+        padding: 20px;
+        text-align: center;
+        border: 1px solid #e0efec;
+      }
+      .reportStatCard-teal { background: #e6faf6; }
+      .reportStatCard-blue { background: #eff6ff; }
+      .reportStatCard-red { background: #fef2f2; }
+      .reportStatCard-green { background: #f0fdf4; }
+      .reportStatLabel {
+        display: block;
+        font-size: 13px;
+        color: #64748b;
+        margin-bottom: 6px;
+      }
+      .reportStatValue {
+        display: block;
+        font-size: 30px;
+        font-weight: 700;
+        color: #0f3f4d;
+      }
+      .reportStatUnit {
+        font-size: 13px;
+        color: #64748b;
+      }
+      .reportPlaceStats {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 14px;
+      }
+      .reportPlaceStat {
+        background: #fafdfc;
+        border: 1px solid #e0efec;
+        border-radius: 8px;
+        padding: 16px;
+      }
+      .reportPlaceName {
+        font-weight: 700;
+        font-size: 15px;
+        color: #0d9488;
+        margin-bottom: 10px;
+      }
+      .reportPlaceMetrics {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+      }
+      .reportPlaceMetrics > div {
+        font-size: 12px;
+      }
+      .reportPlaceMetrics span {
+        display: block;
+        color: #64748b;
+        font-size: 11px;
+      }
+      .reportPlaceMetrics strong {
+        color: #17324d;
+        font-size: 15px;
+      }
+      .reportChart {
+        background: #fafdfc;
+        border: 1px solid #e0efec;
+        border-radius: 8px;
+        padding: 12px;
+      }
+      .reportChart svg {
+        width: 100%;
+        height: auto;
+      }
+      .reportTwoCol {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 18px;
+      }
+      .reportChartSmall svg {
+        max-height: 240px;
+      }
+      .weatherBarRow {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 10px;
+      }
+      .weatherBarLabel {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        min-width: 80px;
+        font-size: 13px;
+      }
+      .weatherBarIcon {
+        font-size: 18px;
+      }
+      .weatherBarTrack {
+        flex: 1;
+        height: 20px;
+        background: #eef7f5;
+        border-radius: 10px;
+        overflow: hidden;
+      }
+      .weatherBarFill {
+        height: 100%;
+        background: linear-gradient(90deg, #0d9488, #14b8a6);
+        border-radius: 10px;
+        transition: width 0.3s;
+      }
+      .weatherBarValue {
+        min-width: 90px;
+        text-align: right;
+        font-size: 12px;
+        color: #557084;
+        font-weight: 500;
+      }
+      .anomalyTypeSummary {
+        margin-bottom: 14px;
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .anomalyBadge {
+        display: inline-block;
+        padding: 4px 10px;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: 600;
+      }
+      .anomalyBadge.jump { background: #fee2e2; color: #dc2626; }
+      .anomalyBadge.duplicate { background: #fef3c7; color: #92400e; }
+      .anomalyBadge.wind { background: #ede9fe; color: #7c3aed; }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+      }
+      th, td {
+        padding: 10px;
+        text-align: left;
+        border-bottom: 1px solid #e0efec;
+      }
+      th {
+        background: #d9f3ed;
+        color: #0d9488;
+        font-weight: 600;
+        font-size: 12px;
+      }
+      tbody tr:hover {
+        background: #f0faf8;
+      }
+      .reportMore {
+        color: #8899a6;
+        font-size: 12px;
+        text-align: center;
+        margin-top: 10px;
+      }
+      .reportNoAnomaly {
+        background: #f0fdf4;
+        border: 1px solid #bbf7d0;
+        color: #166534;
+        padding: 14px 18px;
+        border-radius: 8px;
+        font-size: 14px;
+      }
+      .countBadge {
+        background: #d9f3ed;
+        color: #0d9488;
+        padding: 4px 12px;
+        border-radius: 12px;
+        font-size: 13px;
+        font-weight: 600;
+      }
+      .chartSubtitle {
+        font-size: 12px;
+        color: #8899a6;
+        font-weight: normal;
+      }
+      .reportFooter {
+        border-top: 1px solid #e0efec;
+        padding-top: 18px;
+        margin-top: 32px;
+        text-align: center;
+        color: #8899a6;
+        font-size: 12px;
+      }
+      .legendText { fill: #526b79; font-size: 12px; }
+      .chartLabel { fill: #526b79; font-size: 12px; text-anchor: middle; }
+      .chartValue { fill: #17324d; font-size: 12px; text-anchor: middle; }
+      @media (max-width: 700px) {
+        .reportStats, .reportTwoCol { grid-template-columns: 1fr; }
+        .reportPreview { padding: 20px; }
+      }
+    </style>
+  `;
+
+  const html = `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>潮汐观测报告</title>
+  ${reportStyles}
+</head>
+<body>
+  ${preview.outerHTML}
+</body>
+</html>`;
+
+  const data = generateReportData();
+  const fileName = `潮汐观测${data.reportType === 'daily' ? '日' : '周'}报_${data.effectiveStart}_${data.effectiveEnd}.html`;
+
+  const url = URL.createObjectURL(new Blob([html], { type: 'text/html;charset=utf-8' }));
+  const a = Object.assign(document.createElement('a'), {
+    href: url,
+    download: fileName
+  });
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 render();
