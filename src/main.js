@@ -6,6 +6,9 @@ const snapshotStorageKey = 'hxwl-10-tide-snapshots';
 const opLogStorageKey = 'hxwl-10-tide-oplog';
 const weatherDictStorageKey = 'hxwl-10-weather-dict';
 const ruleStorageKey = 'hxwl-10-tide-rules';
+const goalsStorageKey = 'hxwl-10-goals';
+const practiceRecordsStorageKey = 'hxwl-10-practice-records';
+const todayPlanStorageKey = 'hxwl-10-today-plan';
 
 const seed = [
   { id: crypto.randomUUID(), place: '东极青浜', date: '2026-06-03', time: '05:40', level: 128, windDir: '东北', wind: 13, weather: '多云', note: '浪面平稳' },
@@ -65,6 +68,21 @@ let reportType = 'daily';
 let reportGenerated = false;
 let reportCache = null;
 
+let goals = loadGoals();
+let practiceRecords = loadPracticeRecords();
+let editingGoalId = null;
+
+let practiceTimerState = {
+  isRunning: false,
+  startTime: null,
+  elapsedSeconds: 0,
+  timerInterval: null,
+  targetBPM: 60,
+  currentBPM: 0,
+  beatCount: 0,
+  beatStartTime: null
+};
+
 const defaultAnomalyRules = {
   levelJumpThreshold: 100,
   levelJumpTimeWindowHours: 6,
@@ -91,6 +109,8 @@ app.innerHTML = `
           <button class="viewBtn" data-view="calendar">📅 观测日历</button>
           <button class="viewBtn" data-view="compare">📊 多地点对比</button>
           <button class="viewBtn" data-view="report">📄 报告生成</button>
+          <button class="viewBtn" data-view="goals">🎯 目标看板</button>
+          <button class="viewBtn" data-view="practice">⏱️ 练习中心</button>
         </div>
       </div>
       <div class="actions">
@@ -448,6 +468,179 @@ app.innerHTML = `
         </div>
       </div>
     </section>
+
+    <section class="panel" id="goalsViewSection" style="display:none;">
+      <div class="goalsLayout">
+        <div class="goalsLeftCol">
+          <form class="panel form goalForm" id="goalForm">
+            <div class="panelHead">
+              <h3 id="goalFormTitle">🎯 新增练习目标</h3>
+            </div>
+            <input name="title" placeholder="目标名称（如：熟练掌握C大调音阶）" required />
+            <div class="pair">
+              <div>
+                <label class="fieldLabel">目标类型</label>
+                <select name="goalType" id="goalType">
+                  <option value="bpm">BPM 目标</option>
+                  <option value="duration">练习时长目标</option>
+                  <option value="combo">综合目标</option>
+                </select>
+              </div>
+              <div>
+                <label class="fieldLabel">优先级</label>
+                <select name="priority" id="goalPriority">
+                  <option value="high">🔴 高优先级</option>
+                  <option value="medium" selected>🟡 中优先级</option>
+                  <option value="low">🟢 低优先级</option>
+                </select>
+              </div>
+            </div>
+            <div class="pair">
+              <div>
+                <label class="fieldLabel">目标 BPM</label>
+                <input name="targetBPM" type="number" min="20" max="300" step="1" placeholder="例如: 120" />
+              </div>
+              <div>
+                <label class="fieldLabel">起始 BPM</label>
+                <input name="startBPM" type="number" min="20" max="300" step="1" placeholder="例如: 60" />
+              </div>
+            </div>
+            <div class="pair">
+              <div>
+                <label class="fieldLabel">周练习时长（分钟）</label>
+                <input name="weeklyMinutes" type="number" min="1" step="1" placeholder="例如: 300" />
+              </div>
+              <div>
+                <label class="fieldLabel">截止日期</label>
+                <input name="deadline" type="date" />
+              </div>
+            </div>
+            <textarea name="description" placeholder="目标描述、练习要点..."></textarea>
+            <div class="formActions">
+              <button type="button" class="ghost" id="cancelGoalEdit" style="display:none;">取消</button>
+              <button class="primary" type="submit">💾 保存目标</button>
+            </div>
+          </form>
+
+          <div class="panel" id="todayPlanPanel">
+            <div class="panelHead">
+              <h3>📅 今日计划</h3>
+              <span id="todayDateBadge" class="countBadge"></span>
+            </div>
+            <div id="todayPlanContent"></div>
+          </div>
+        </div>
+
+        <div class="goalsRightCol">
+          <div class="panel">
+            <div class="panelHead">
+              <h2>🎯 目标看板</h2>
+              <div class="goalStatsRow" id="goalStatsRow"></div>
+            </div>
+            <div class="goalFilterTabs">
+              <button class="goalFilterTab active" data-filter="active">进行中</button>
+              <button class="goalFilterTab" data-filter="completed">已达成</button>
+              <button class="goalFilterTab" data-filter="overdue">已逾期</button>
+              <button class="goalFilterTab" data-filter="all">全部</button>
+            </div>
+            <div id="goalListContainer"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" id="practiceViewSection" style="display:none;">
+      <div class="practiceLayout">
+        <div class="practiceLeftCol">
+          <div class="panel practiceTimerPanel">
+            <div class="panelHead">
+              <h2>⏱️ 计时练习</h2>
+              <span id="practiceStatusBadge" class="countBadge" style="background:#e0f2fe;color:#075985;">准备中</span>
+            </div>
+
+            <div class="practiceSelectGoal">
+              <label class="fieldLabel">选择练习目标</label>
+              <select id="practiceGoalSelect">
+                <option value="">-- 无目标自由练习 --</option>
+              </select>
+            </div>
+
+            <div class="practiceBPMInputs">
+              <div class="pair">
+                <div>
+                  <label class="fieldLabel">练习 BPM</label>
+                  <div class="bpmInputWrap">
+                    <button class="bpmAdjustBtn" id="bpmMinus10">-10</button>
+                    <button class="bpmAdjustBtn" id="bpmMinus5">-5</button>
+                    <input id="practiceBPMInput" type="number" min="20" max="300" value="60" />
+                    <button class="bpmAdjustBtn" id="bpmPlus5">+5</button>
+                    <button class="bpmAdjustBtn" id="bpmPlus10">+10</button>
+                  </div>
+                </div>
+                <div>
+                  <label class="fieldLabel">节拍器</label>
+                  <div class="metronomeControl">
+                    <button class="ghost" id="metronomeToggleBtn">🔊 开启节拍器</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="timerDisplay">
+              <div class="timerDigits" id="timerDigits">00:00:00</div>
+              <div class="timerSubInfo">
+                <span id="timerBPMDisplay">BPM: 60</span>
+                <span id="timerGoalDisplay">未绑定目标</span>
+              </div>
+            </div>
+
+            <div class="beatRecorder">
+              <div class="panelHead" style="padding:0;margin-bottom:12px;">
+                <h3 style="margin-bottom:0;">🥁 击拍检测（记录瞬时BPM）</h3>
+              </div>
+              <p class="practiceHint">按 TAP 键随节拍点击，系统会自动计算您的实际 BPM</p>
+              <div class="tapArea">
+                <button class="tapBtn" id="tapBtn">TAP 击拍</button>
+                <div class="tapResult">
+                  <div class="tapBPM" id="tapBPM">--</div>
+                  <div class="tapSub">BPM</div>
+                </div>
+              </div>
+              <div class="tapStats">
+                <span>击拍次数：<strong id="tapCount">0</strong></span>
+                <span>平均BPM：<strong id="tapAvgBPM">--</strong></span>
+              </div>
+            </div>
+
+            <div class="practiceControls">
+              <button class="primary practiceStartBtn" id="practiceStartBtn">▶️ 开始练习</button>
+              <button class="ghost practicePauseBtn" id="practicePauseBtn" disabled>⏸️ 暂停</button>
+              <button class="ghost practiceStopBtn" id="practiceStopBtn" disabled style="background:#fee2e2;color:#dc2626;">⏹️ 结束</button>
+            </div>
+          </div>
+
+          <div class="panel" id="todayPlanInPractice">
+            <div class="panelHead">
+              <h3>📅 今日计划建议</h3>
+              <span id="planDateBadge2" class="countBadge"></span>
+            </div>
+            <div id="todayPlanInPracticeContent"></div>
+          </div>
+        </div>
+
+        <div class="practiceRightCol">
+          <div class="panel">
+            <div class="panelHead">
+              <h2>📊 练习记录</h2>
+              <span id="practiceRecordCount" class="countBadge"></span>
+            </div>
+            <div class="practiceStats" id="practiceStatsSummary"></div>
+            <div class="practiceRecordList" id="practiceRecordList"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
   </main>
 
   <div class="modalBackdrop" id="csvModal" style="display:none;">
@@ -1859,7 +2052,17 @@ function render() {
     renderReportView();
     return;
   }
-  
+
+  if (currentView === 'goals') {
+    renderGoalsView();
+    return;
+  }
+
+  if (currentView === 'practice') {
+    renderPracticeView();
+    return;
+  }
+
   document.querySelector('#formSection').style.display = '';
   document.querySelector('#listViewSection').style.display = currentView === 'list' ? '' : 'none';
   document.querySelector('#calendarViewSection').style.display = currentView === 'calendar' ? '' : 'none';
@@ -4870,6 +5073,947 @@ function exportReportAsHtml() {
   });
   a.click();
   URL.revokeObjectURL(url);
+}
+
+let goalFilterMode = 'active';
+
+function loadGoals() {
+  try {
+    return JSON.parse(localStorage.getItem(goalsStorageKey) || '[]');
+  } catch (e) {
+    return [];
+  }
+}
+
+function persistGoals() {
+  localStorage.setItem(goalsStorageKey, JSON.stringify(goals));
+}
+
+function loadPracticeRecords() {
+  try {
+    return JSON.parse(localStorage.getItem(practiceRecordsStorageKey) || '[]');
+  } catch (e) {
+    return [];
+  }
+}
+
+function persistPracticeRecords() {
+  localStorage.setItem(practiceRecordsStorageKey, JSON.stringify(practiceRecords));
+}
+
+function getStartOfWeek(dateStr) {
+  const d = new Date(dateStr);
+  const day = d.getDay();
+  const diff = day === 0 ? 6 : day - 1;
+  d.setDate(d.getDate() - diff);
+  d.setHours(0, 0, 0, 0);
+  return d.toISOString().slice(0, 10);
+}
+
+function getEndOfWeek(dateStr) {
+  const start = new Date(getStartOfWeek(dateStr));
+  start.setDate(start.getDate() + 6);
+  return start.toISOString().slice(0, 10);
+}
+
+function getWeekPracticeMinutes(goalId, dateStr) {
+  const weekStart = getStartOfWeek(dateStr);
+  const weekEnd = getEndOfWeek(dateStr);
+  return practiceRecords
+    .filter(r => r.goalId === goalId && r.date >= weekStart && r.date <= weekEnd)
+    .reduce((sum, r) => sum + r.durationMinutes, 0);
+}
+
+function getTotalWeekPracticeMinutes(dateStr) {
+  const weekStart = getStartOfWeek(dateStr);
+  const weekEnd = getEndOfWeek(dateStr);
+  return practiceRecords
+    .filter(r => r.date >= weekStart && r.date <= weekEnd)
+    .reduce((sum, r) => sum + r.durationMinutes, 0);
+}
+
+function getGoalProgress(goal) {
+  const today = new Date().toISOString().slice(0, 10);
+  const weekMinutes = getWeekPracticeMinutes(goal.id, today);
+  const maxBPMReached = getGoalMaxBPM(goal.id);
+  let bpmProgress = 0;
+  let durationProgress = 0;
+  if (goal.targetBPM && goal.startBPM) {
+    const current = Math.max(maxBPMReached, Number(goal.startBPM) || 0);
+    const range = (Number(goal.targetBPM) || 1) - (Number(goal.startBPM) || 0);
+    if (range > 0) {
+      bpmProgress = Math.min(100, Math.round(((current - Number(goal.startBPM)) / range) * 100));
+    } else if (maxBPMReached >= Number(goal.targetBPM)) {
+      bpmProgress = 100;
+    }
+  }
+  if (goal.weeklyMinutes) {
+    durationProgress = Math.min(100, Math.round((weekMinutes / Number(goal.weeklyMinutes)) * 100));
+  }
+  let overallProgress;
+  if (goal.goalType === 'bpm') {
+    overallProgress = bpmProgress;
+  } else if (goal.goalType === 'duration') {
+    overallProgress = durationProgress;
+  } else {
+    overallProgress = Math.round((bpmProgress + durationProgress) / 2);
+  }
+  return {
+    bpmProgress,
+    durationProgress,
+    overallProgress,
+    weekMinutes,
+    maxBPMReached,
+    targetBPM: Number(goal.targetBPM) || 0,
+    startBPM: Number(goal.startBPM) || 0,
+    weeklyMinutes: Number(goal.weeklyMinutes) || 0
+  };
+}
+
+function getGoalMaxBPM(goalId) {
+  const records = practiceRecords.filter(r => r.goalId === goalId && r.avgBPM);
+  if (records.length === 0) return 0;
+  return Math.max(...records.map(r => Number(r.avgBPM) || 0));
+}
+
+function isGoalOverdue(goal) {
+  if (!goal.deadline) return false;
+  const today = new Date().toISOString().slice(0, 10);
+  return today > goal.deadline && !goal.completed;
+}
+
+function isGoalNearDeadline(goal, days = 7) {
+  if (!goal.deadline || goal.completed) return false;
+  const today = new Date();
+  const deadline = new Date(goal.deadline);
+  const diffDays = Math.ceil((deadline - today) / (1000 * 60 * 60 * 24));
+  return diffDays >= 0 && diffDays <= days;
+}
+
+function getDaysUntilDeadline(goal) {
+  if (!goal.deadline) return null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const deadline = new Date(goal.deadline);
+  deadline.setHours(0, 0, 0, 0);
+  return Math.ceil((deadline - today) / (1000 * 60 * 60 * 24));
+}
+
+function checkGoalBPMGoal(goal, achievedBPM) {
+  if (!goal || !goal.targetBPM) return false;
+  return achievedBPM >= Number(goal.targetBPM);
+}
+
+function autoUpdateGoalOnPracticeEnd(goalId, avgBPM, durationMinutes) {
+  const goalIdx = goals.findIndex(g => g.id === goalId);
+  if (goalIdx === -1) return null;
+  const goal = goals[goalIdx];
+  let updates = { ...goal };
+  let achievedGoal = false;
+  if (!goal.completed && checkGoalBPMGoal(goal, avgBPM)) {
+    updates.completed = true;
+    updates.completedAt = new Date().toISOString();
+    updates.completedBy = 'auto';
+    achievedGoal = true;
+  }
+  goals[goalIdx] = updates;
+  persistGoals();
+  return { goal: updates, achievedGoal };
+}
+
+function manuallyUndoGoalCompletion(goalId) {
+  const goalIdx = goals.findIndex(g => g.id === goalId);
+  if (goalIdx === -1) return false;
+  if (!goals[goalIdx].completed) return false;
+  goals[goalIdx].completed = false;
+  goals[goalIdx].completedAt = null;
+  goals[goalIdx].completedBy = null;
+  persistGoals();
+  return true;
+}
+
+function manuallyMarkGoalComplete(goalId) {
+  const goalIdx = goals.findIndex(g => g.id === goalId);
+  if (goalIdx === -1) return false;
+  goals[goalIdx].completed = true;
+  goals[goalIdx].completedAt = new Date().toISOString();
+  goals[goalIdx].completedBy = 'manual';
+  persistGoals();
+  return true;
+}
+
+function generateTodayPlanSuggestions() {
+  const today = new Date().toISOString().slice(0, 10);
+  const suggestions = [];
+  const activeGoals = goals.filter(g => !g.completed);
+
+  activeGoals.forEach(goal => {
+    const progress = getGoalProgress(goal);
+    const daysUntil = getDaysUntilDeadline(goal);
+
+    if (isGoalNearDeadline(goal, 7)) {
+      const urgency = daysUntil <= 2 ? 'urgent' : (daysUntil <= 5 ? 'warning' : 'info');
+      suggestions.push({
+        id: `${goal.id}-deadline`,
+        goalId: goal.id,
+        type: 'deadline',
+        urgency,
+        title: `🎯 目标临近截止：${goal.title}`,
+        message: daysUntil === 0
+          ? `今天是截止日期！距离目标BPM还差 ${Math.max(0, progress.targetBPM - progress.maxBPMReached)} BPM，进度 ${progress.overallProgress}%`
+          : `还有 ${daysUntil} 天截止，当前进度 ${progress.overallProgress}%，建议今日加强练习`,
+        action: { label: '立即去练习', view: 'practice', goalId: goal.id }
+      });
+    }
+
+    if (goal.weeklyMinutes && progress.durationProgress < 60) {
+      const remaining = Number(goal.weeklyMinutes) - progress.weekMinutes;
+      if (remaining > 0) {
+        const urgency = progress.durationProgress < 25 ? 'urgent' : (progress.durationProgress < 50 ? 'warning' : 'info');
+        suggestions.push({
+          id: `${goal.id}-duration`,
+          goalId: goal.id,
+          type: 'duration',
+          urgency,
+          title: `⏱️ 周练习时长不足：${goal.title}`,
+          message: `本周仅完成 ${progress.weekMinutes} 分钟（目标 ${goal.weeklyMinutes} 分钟），还差 ${remaining} 分钟，建议今日至少练习 ${Math.ceil(remaining / 3)} 分钟`,
+          action: { label: '开始计时练习', view: 'practice', goalId: goal.id }
+        });
+      }
+    }
+
+    if (goal.targetBPM && progress.bpmProgress < 50 && !isGoalOverdue(goal)) {
+      suggestions.push({
+        id: `${goal.id}-bpm`,
+        goalId: goal.id,
+        type: 'bpm',
+        urgency: 'info',
+        title: `🎵 BPM进展较慢：${goal.title}`,
+        message: `当前最高BPM ${progress.maxBPMReached || '尚未记录'}，目标 ${goal.targetBPM} BPM，建议今日专注慢速准确练习逐步提升`,
+        action: { label: '设置BPM去练习', view: 'practice', goalId: goal.id, bpm: Math.max(Number(goal.startBPM) || 60, progress.maxBPMReached || Number(goal.startBPM) || 60) }
+      });
+    }
+  });
+
+  const sortOrder = { urgent: 0, warning: 1, info: 2 };
+  suggestions.sort((a, b) => sortOrder[a.urgency] - sortOrder[b.urgency]);
+  return suggestions;
+}
+
+const goalForm = document.querySelector('#goalForm');
+const cancelGoalEditBtn = document.querySelector('#cancelGoalEdit');
+const goalFormTitle = document.querySelector('#goalFormTitle');
+const practiceGoalSelect = document.querySelector('#practiceGoalSelect');
+
+goalForm.addEventListener('submit', (e) => {
+  e.preventDefault();
+  const data = Object.fromEntries(new FormData(goalForm).entries());
+  const goal = {
+    id: editingGoalId || crypto.randomUUID(),
+    title: data.title,
+    goalType: data.goalType,
+    priority: data.priority,
+    targetBPM: data.targetBPM ? Number(data.targetBPM) : null,
+    startBPM: data.startBPM ? Number(data.startBPM) : null,
+    weeklyMinutes: data.weeklyMinutes ? Number(data.weeklyMinutes) : null,
+    deadline: data.deadline || null,
+    description: data.description || '',
+    completed: false,
+    completedAt: null,
+    completedBy: null,
+    createdAt: editingGoalId ? (goals.find(g => g.id === editingGoalId)?.createdAt || new Date().toISOString()) : new Date().toISOString()
+  };
+
+  if (editingGoalId) {
+    const idx = goals.findIndex(g => g.id === editingGoalId);
+    if (idx !== -1) {
+      goal.completed = goals[idx].completed;
+      goal.completedAt = goals[idx].completedAt;
+      goal.completedBy = goals[idx].completedBy;
+      goals[idx] = goal;
+    }
+  } else {
+    goals.unshift(goal);
+  }
+  editingGoalId = null;
+  goalForm.reset();
+  cancelGoalEditBtn.style.display = 'none';
+  goalFormTitle.textContent = '🎯 新增练习目标';
+  persistGoals();
+  render();
+});
+
+cancelGoalEditBtn && cancelGoalEditBtn.addEventListener('click', () => {
+  editingGoalId = null;
+  goalForm.reset();
+  cancelGoalEditBtn.style.display = 'none';
+  goalFormTitle.textContent = '🎯 新增练习目标';
+});
+
+function editGoal(id) {
+  const goal = goals.find(g => g.id === id);
+  if (!goal) return;
+  editingGoalId = id;
+  goalFormTitle.textContent = '✏️ 编辑练习目标';
+  cancelGoalEditBtn.style.display = 'inline-block';
+  Object.entries(goal).forEach(([key, value]) => {
+    if (goalForm.elements[key] && value !== null && value !== undefined) {
+      goalForm.elements[key].value = value;
+    }
+  });
+  render();
+}
+
+function removeGoal(id) {
+  if (!confirm('确定要删除这个目标吗？关联的练习记录将保留，但目标将不再显示在看板中。')) return;
+  goals = goals.filter(g => g.id !== id);
+  if (editingGoalId === id) {
+    editingGoalId = null;
+    goalForm.reset();
+    cancelGoalEditBtn.style.display = 'none';
+    goalFormTitle.textContent = '🎯 新增练习目标';
+  }
+  persistGoals();
+  render();
+}
+
+document.addEventListener('click', (e) => {
+  const filterBtn = e.target.closest('.goalFilterTab');
+  if (filterBtn) {
+    goalFilterMode = filterBtn.dataset.filter;
+    document.querySelectorAll('.goalFilterTab').forEach(btn => {
+      btn.classList.toggle('active', btn === filterBtn);
+    });
+    renderGoalList();
+    return;
+  }
+
+  const actionEl = e.target.closest('[data-action]');
+  if (!actionEl) return;
+  const action = actionEl.dataset.action;
+  const goalId = actionEl.dataset.goalId;
+
+  switch (action) {
+    case 'edit-goal':
+      editGoal(goalId);
+      break;
+    case 'delete-goal':
+      removeGoal(goalId);
+      break;
+    case 'complete-goal':
+      if (manuallyMarkGoalComplete(goalId)) {
+        alert('✅ 已手动标记目标为达成状态');
+        render();
+      }
+      break;
+    case 'undo-goal':
+      if (manuallyUndoGoalCompletion(goalId)) {
+        alert('↩️ 已撤销目标达成状态，您可以继续努力！');
+        render();
+      }
+      break;
+    case 'go-practice': {
+      const bpm = actionEl.dataset.bpm;
+      currentView = 'practice';
+      render();
+      if (bpm) {
+        setTimeout(() => {
+          const input = document.querySelector('#practiceBPMInput');
+          if (input) input.value = bpm;
+        }, 50);
+      }
+      break;
+    }
+    case 'select-goal-practice': {
+      currentView = 'practice';
+      const gid = actionEl.dataset.goalId;
+      render();
+      setTimeout(() => {
+        const sel = document.querySelector('#practiceGoalSelect');
+        if (sel && gid) sel.value = gid;
+        const event = new Event('change');
+        sel && sel.dispatchEvent(event);
+      }, 50);
+      break;
+    }
+  }
+});
+
+const practiceStartBtn = document.querySelector('#practiceStartBtn');
+const practicePauseBtn = document.querySelector('#practicePauseBtn');
+const practiceStopBtn = document.querySelector('#practiceStopBtn');
+const practiceBPMInput = document.querySelector('#practiceBPMInput');
+const tapBtn = document.querySelector('#tapBtn');
+const metronomeToggleBtn = document.querySelector('#metronomeToggleBtn');
+
+let tapTimes = [];
+let metronomeEnabled = false;
+let metronomeAudioCtx = null;
+let metronomeInterval = null;
+
+function updateTimerDisplay() {
+  const total = practiceTimerState.elapsedSeconds;
+  const h = String(Math.floor(total / 3600)).padStart(2, '0');
+  const m = String(Math.floor((total % 3600) / 60)).padStart(2, '0');
+  const s = String(total % 60).padStart(2, '0');
+  document.querySelector('#timerDigits').textContent = `${h}:${m}:${s}`;
+}
+
+function formatDuration(seconds) {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+  if (h > 0) return `${h}小时${m}分${s}秒`;
+  if (m > 0) return `${m}分${s}秒`;
+  return `${s}秒`;
+}
+
+practiceStartBtn && practiceStartBtn.addEventListener('click', () => {
+  if (practiceTimerState.isRunning) return;
+  practiceTimerState.isRunning = true;
+  practiceTimerState.startTime = Date.now() - practiceTimerState.elapsedSeconds * 1000;
+  practiceTimerState.timerInterval = setInterval(() => {
+    practiceTimerState.elapsedSeconds = Math.floor((Date.now() - practiceTimerState.startTime) / 1000);
+    updateTimerDisplay();
+  }, 1000);
+  practiceStartBtn.textContent = '▶️ 练习中';
+  practiceStartBtn.disabled = true;
+  practicePauseBtn.disabled = false;
+  practiceStopBtn.disabled = false;
+  document.querySelector('#practiceStatusBadge').textContent = '练习中';
+  document.querySelector('#practiceStatusBadge').className = 'countBadge compareQualityGood';
+  if (metronomeEnabled) startMetronome();
+});
+
+practicePauseBtn && practicePauseBtn.addEventListener('click', () => {
+  if (!practiceTimerState.isRunning) return;
+  practiceTimerState.isRunning = false;
+  clearInterval(practiceTimerState.timerInterval);
+  practiceStartBtn.textContent = '▶️ 继续练习';
+  practiceStartBtn.disabled = false;
+  practicePauseBtn.disabled = true;
+  document.querySelector('#practiceStatusBadge').textContent = '已暂停';
+  document.querySelector('#practiceStatusBadge').className = 'countBadge compareQualityWarning';
+  stopMetronome();
+});
+
+practiceStopBtn && practiceStopBtn.addEventListener('click', () => {
+  if (!confirm(`确定结束本次练习吗？\n\n已练习：${formatDuration(practiceTimerState.elapsedSeconds)}`)) return;
+  finishPracticeSession();
+});
+
+function finishPracticeSession() {
+  clearInterval(practiceTimerState.timerInterval);
+  practiceTimerState.isRunning = false;
+  const durationSeconds = practiceTimerState.elapsedSeconds;
+  stopMetronome();
+
+  if (durationSeconds < 5) {
+    alert('练习时间太短，不保存记录（至少5秒）');
+    resetPracticeState();
+    return;
+  }
+
+  const goalId = practiceGoalSelect ? practiceGoalSelect.value : '';
+  const goal = goalId ? goals.find(g => g.id === goalId) : null;
+  const durationMinutes = Math.round(durationSeconds / 60 * 10) / 10;
+  const bpmInput = Number(practiceBPMInput?.value) || 60;
+
+  const tapBPMs = tapTimes.map(t => t.bpm).filter(b => b > 0);
+  const avgBPM = tapBPMs.length > 0
+    ? Math.round(tapBPMs.reduce((a, b) => a + b, 0) / tapBPMs.length)
+    : bpmInput;
+  const maxBPM = tapBPMs.length > 0 ? Math.max(...tapBPMs) : bpmInput;
+
+  const record = {
+    id: crypto.randomUUID(),
+    goalId: goalId || null,
+    goalTitle: goal ? goal.title : '自由练习',
+    date: new Date().toISOString().slice(0, 10),
+    startTime: new Date(Date.now() - durationSeconds * 1000).toISOString(),
+    endTime: new Date().toISOString(),
+    durationSeconds,
+    durationMinutes,
+    practiceBPM: bpmInput,
+    avgBPM,
+    maxBPM,
+    tapCount: tapTimes.length,
+    note: ''
+  };
+
+  practiceRecords.unshift(record);
+  persistPracticeRecords();
+
+  let resultMsg = `✅ 练习记录已保存！\n\n练习时长：${formatDuration(durationSeconds)}\n设置BPM：${bpmInput}\n平均BPM：${avgBPM}\n最高BPM：${maxBPM}\n击拍次数：${tapTimes.length}`;
+
+  if (goalId) {
+    const result = autoUpdateGoalOnPracticeEnd(goalId, avgBPM, durationMinutes);
+    if (result && result.achievedGoal) {
+      resultMsg += `\n\n🎉 恭喜！本次练习达到了目标BPM ${goal.targetBPM}，目标 "${goal.title}" 已自动标记为达成！\n（可在目标看板中手动撤销达成状态）`;
+    } else if (goal) {
+      const progress = getGoalProgress(goal);
+      resultMsg += `\n\n📊 目标进度更新：${progress.overallProgress}%\nBPM进度：${progress.bpmProgress}%\n时长进度：${progress.durationProgress}%`;
+    }
+  }
+
+  alert(resultMsg);
+  resetPracticeState();
+  render();
+}
+
+function resetPracticeState() {
+  practiceTimerState.isRunning = false;
+  practiceTimerState.elapsedSeconds = 0;
+  practiceTimerState.startTime = null;
+  tapTimes = [];
+  practiceStartBtn.textContent = '▶️ 开始练习';
+  practiceStartBtn.disabled = false;
+  practicePauseBtn.disabled = true;
+  practiceStopBtn.disabled = true;
+  document.querySelector('#practiceStatusBadge').textContent = '准备中';
+  document.querySelector('#practiceStatusBadge').className = 'countBadge';
+  document.querySelector('#practiceStatusBadge').style.background = '#e0f2fe';
+  document.querySelector('#practiceStatusBadge').style.color = '#075985';
+  document.querySelector('#tapBPM').textContent = '--';
+  document.querySelector('#tapAvgBPM').textContent = '--';
+  document.querySelector('#tapCount').textContent = '0';
+  updateTimerDisplay();
+}
+
+practiceBPMInput && practiceBPMInput.addEventListener('change', () => {
+  const val = Number(practiceBPMInput.value);
+  if (val >= 20 && val <= 300) {
+    document.querySelector('#timerBPMDisplay').textContent = `BPM: ${val}`;
+    if (metronomeEnabled && practiceTimerState.isRunning) {
+      stopMetronome();
+      startMetronome();
+    }
+  }
+});
+
+['bpmMinus10', 'bpmMinus5', 'bpmPlus5', 'bpmPlus10'].forEach(id => {
+  const btn = document.querySelector('#' + id);
+  if (!btn) return;
+  btn.addEventListener('click', () => {
+    const delta = Number(id.replace(/bpm/, ''));
+    const cur = Number(practiceBPMInput.value) || 60;
+    const newVal = Math.max(20, Math.min(300, cur + delta));
+    practiceBPMInput.value = newVal;
+    document.querySelector('#timerBPMDisplay').textContent = `BPM: ${newVal}`;
+    if (metronomeEnabled && practiceTimerState.isRunning) {
+      stopMetronome();
+      startMetronome();
+    }
+  });
+});
+
+tapBtn && tapBtn.addEventListener('click', () => {
+  const now = Date.now();
+  if (tapTimes.length > 0) {
+    const lastTime = tapTimes[tapTimes.length - 1].time;
+    if (now - lastTime > 3000) {
+      tapTimes = [];
+    }
+  }
+  tapTimes.push({ time: now, bpm: 0 });
+  if (tapTimes.length >= 2) {
+    const intervals = [];
+    for (let i = 1; i < tapTimes.length; i++) {
+      intervals.push(tapTimes[i].time - tapTimes[i - 1].time);
+    }
+    const avgInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length;
+    const bpm = Math.round(60000 / avgInterval);
+    tapTimes[tapTimes.length - 1].bpm = bpm;
+    document.querySelector('#tapBPM').textContent = bpm;
+    const validBPMs = tapTimes.map(t => t.bpm).filter(b => b > 0);
+    if (validBPMs.length > 0) {
+      const avg = Math.round(validBPMs.reduce((a, b) => a + b, 0) / validBPMs.length);
+      document.querySelector('#tapAvgBPM').textContent = avg;
+    }
+  }
+  document.querySelector('#tapCount').textContent = tapTimes.length;
+  tapBtn.style.transform = 'scale(0.95)';
+  setTimeout(() => { tapBtn.style.transform = ''; }, 80);
+});
+
+metronomeToggleBtn && metronomeToggleBtn.addEventListener('click', () => {
+  metronomeEnabled = !metronomeEnabled;
+  if (metronomeEnabled) {
+    metronomeToggleBtn.textContent = '🔇 关闭节拍器';
+    metronomeToggleBtn.style.background = '#d9f3ed';
+    metronomeToggleBtn.style.color = '#0d9488';
+    if (practiceTimerState.isRunning) startMetronome();
+  } else {
+    metronomeToggleBtn.textContent = '🔊 开启节拍器';
+    metronomeToggleBtn.style.background = '';
+    metronomeToggleBtn.style.color = '';
+    stopMetronome();
+  }
+});
+
+function startMetronome() {
+  if (!metronomeEnabled) return;
+  if (!metronomeAudioCtx) {
+    try {
+      metronomeAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    } catch (e) { return; }
+  }
+  if (metronomeAudioCtx.state === 'suspended') {
+    metronomeAudioCtx.resume();
+  }
+  const bpm = Number(practiceBPMInput?.value) || 60;
+  const intervalMs = (60 / bpm) * 1000;
+  let beat = 0;
+  playClick();
+  metronomeInterval = setInterval(() => {
+    beat++;
+    playClick(beat % 4 === 0);
+  }, intervalMs);
+}
+
+function playClick(accent = false) {
+  if (!metronomeAudioCtx) return;
+  const osc = metronomeAudioCtx.createOscillator();
+  const gain = metronomeAudioCtx.createGain();
+  osc.connect(gain);
+  gain.connect(metronomeAudioCtx.destination);
+  osc.frequency.value = accent ? 1200 : 800;
+  osc.type = 'sine';
+  gain.gain.setValueAtTime(accent ? 0.2 : 0.1, metronomeAudioCtx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, metronomeAudioCtx.currentTime + 0.05);
+  osc.start();
+  osc.stop(metronomeAudioCtx.currentTime + 0.05);
+}
+
+function stopMetronome() {
+  if (metronomeInterval) {
+    clearInterval(metronomeInterval);
+    metronomeInterval = null;
+  }
+}
+
+practiceGoalSelect && practiceGoalSelect.addEventListener('change', () => {
+  const goalId = practiceGoalSelect.value;
+  const goal = goals.find(g => g.id === goalId);
+  const disp = document.querySelector('#timerGoalDisplay');
+  if (!disp) return;
+  if (goal) {
+    disp.textContent = `目标：${goal.title} (目标BPM: ${goal.targetBPM || '-'})`;
+    if (goal.targetBPM) {
+      const maxBPM = getGoalMaxBPM(goalId);
+      const suggested = maxBPM > 0 ? Math.min(maxBPM + 5, Number(goal.targetBPM)) : (Number(goal.startBPM) || Number(goal.targetBPM) - 20);
+      if (practiceBPMInput) {
+        practiceBPMInput.value = Math.max(20, suggested);
+        document.querySelector('#timerBPMDisplay').textContent = `BPM: ${practiceBPMInput.value}`;
+      }
+    }
+  } else {
+    disp.textContent = '未绑定目标';
+  }
+});
+
+function renderGoalList() {
+  const container = document.querySelector('#goalListContainer');
+  if (!container) return;
+
+  let list = goals;
+  const today = new Date().toISOString().slice(0, 10);
+
+  if (goalFilterMode === 'active') {
+    list = goals.filter(g => !g.completed && !isGoalOverdue(g));
+  } else if (goalFilterMode === 'completed') {
+    list = goals.filter(g => g.completed);
+  } else if (goalFilterMode === 'overdue') {
+    list = goals.filter(g => isGoalOverdue(g));
+  }
+
+  const priorityOrder = { high: 0, medium: 1, low: 2 };
+  list.sort((a, b) => {
+    if (a.completed !== b.completed) return a.completed ? 1 : -1;
+    return priorityOrder[a.priority] - priorityOrder[b.priority];
+  });
+
+  if (list.length === 0) {
+    container.innerHTML = '<p class="empty" style="text-align:center;padding:40px 16px;">暂无目标，快去创建第一个练习目标吧！🎯</p>';
+    return;
+  }
+
+  container.innerHTML = list.map(goal => {
+    const progress = getGoalProgress(goal);
+    const overdue = isGoalOverdue(goal);
+    const nearDeadline = isGoalNearDeadline(goal, 7);
+    const daysUntil = getDaysUntilDeadline(goal);
+    const priorityMap = { high: { text: '🔴 高', cls: 'goalPriHigh' }, medium: { text: '🟡 中', cls: 'goalPriMedium' }, low: { text: '🟢 低', cls: 'goalPriLow' } };
+    const pri = priorityMap[goal.priority] || priorityMap.medium;
+
+    let statusBadge = '';
+    if (goal.completed) {
+      statusBadge = `<span class="goalBadge goalBadgeSuccess">✅ 已达成${goal.completedBy === 'auto' ? '（自动）' : goal.completedBy === 'manual' ? '（手动）' : ''}</span>`;
+    } else if (overdue) {
+      statusBadge = `<span class="goalBadge goalBadgeError">⏰ 已逾期${daysUntil !== null ? ` ${Math.abs(daysUntil)}天` : ''}</span>`;
+    } else if (nearDeadline) {
+      statusBadge = `<span class="goalBadge goalBadgeWarning">⏳ ${daysUntil === 0 ? '今日截止' : `还剩${daysUntil}天`}</span>`;
+    }
+
+    const bpmBar = (goal.targetBPM && progress.targetBPM > 0)
+      ? `<div class="goalSubProgress">
+          <div class="goalSubLabel">🎵 BPM进度：${progress.maxBPMReached || 0} / ${progress.targetBPM} BPM</div>
+          <div class="progressBar"><div class="progressFill" style="width:${progress.bpmProgress}%;background:linear-gradient(90deg,#0d9488,#14b8a6);"></div></div>
+        </div>` : '';
+
+    const durBar = goal.weeklyMinutes
+      ? `<div class="goalSubProgress">
+          <div class="goalSubLabel">⏱️ 本周时长：${progress.weekMinutes} / ${progress.weeklyMinutes} 分钟</div>
+          <div class="progressBar"><div class="progressFill" style="width:${progress.durationProgress}%;background:linear-gradient(90deg,#6366f1,#8b5cf6);"></div></div>
+        </div>` : '';
+
+    const undoButton = goal.completed
+      ? `<button class="ghost goalActionBtn" data-action="undo-goal" data-goal-id="${goal.id}" title="撤销达成状态">↩️ 撤销</button>`
+      : `<button class="ghost goalActionBtn" data-action="complete-goal" data-goal-id="${goal.id}" title="手动标记完成">✅ 标记达成</button>`;
+
+    return `
+      <div class="goalCard ${goal.completed ? 'completed' : ''} ${overdue ? 'overdue' : ''}">
+        <div class="goalCardHeader">
+          <div class="goalTitleRow">
+            <h3 class="goalTitle">${escapeHtml(goal.title)}</h3>
+            <span class="goalPriority ${pri.cls}">${pri.text}</span>
+          </div>
+          <div class="goalMetaRow">
+            <span class="goalTypeTag">${goal.goalType === 'bpm' ? 'BPM目标' : goal.goalType === 'duration' ? '时长目标' : '综合目标'}</span>
+            ${goal.deadline ? `<span class="goalDeadline">📅 ${goal.deadline}</span>` : ''}
+            ${statusBadge}
+          </div>
+        </div>
+        ${goal.description ? `<p class="goalDesc">${escapeHtml(goal.description)}</p>` : ''}
+        <div class="goalMainProgress">
+          <div class="goalMainLabel">综合进度：<strong>${progress.overallProgress}%</strong></div>
+          <div class="progressBar large">
+            <div class="progressFill" style="width:${progress.overallProgress}%;"></div>
+          </div>
+        </div>
+        ${bpmBar}
+        ${durBar}
+        <div class="goalCardActions">
+          ${!goal.completed ? `<button class="primary goalActionBtn primary-action" data-action="select-goal-practice" data-goal-id="${goal.id}">▶️ 去练习</button>` : ''}
+          ${undoButton}
+          <button class="ghost goalActionBtn" data-action="edit-goal" data-goal-id="${goal.id}">✏️ 编辑</button>
+          <button class="ghost goalActionBtn" data-action="delete-goal" data-goal-id="${goal.id}" style="color:#dc2626;background:#fee2e2;">🗑️ 删除</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function renderGoalStats() {
+  const container = document.querySelector('#goalStatsRow');
+  if (!container) return;
+  const active = goals.filter(g => !g.completed && !isGoalOverdue(g)).length;
+  const completed = goals.filter(g => g.completed).length;
+  const overdue = goals.filter(g => isGoalOverdue(g)).length;
+  const total = goals.length;
+  const today = new Date().toISOString().slice(0, 10);
+  const weekMin = getTotalWeekPracticeMinutes(today);
+  container.innerHTML = `
+    <span class="countBadge" style="background:#d9f3ed;color:#0d9488;">进行中 ${active}</span>
+    <span class="countBadge" style="background:#dcfce7;color:#166534;">已达成 ${completed}</span>
+    <span class="countBadge" style="background:#fee2e2;color:#dc2626;">逾期 ${overdue}</span>
+    <span class="countBadge" style="background:#dbeafe;color:#1e40af;">本周 ${weekMin}分钟</span>
+    <span class="countBadge" style="background:#fef3c7;color:#92400e;">共 ${total}</span>
+  `;
+}
+
+function renderTodayPlan(containerId) {
+  const container = document.querySelector(containerId);
+  if (!container) return;
+  const today = new Date().toISOString().slice(0, 10);
+  const badgeId = containerId === '#todayPlanContent' ? '#todayDateBadge' : '#planDateBadge2';
+  const badgeEl = document.querySelector(badgeId);
+  if (badgeEl) {
+    const d = new Date();
+    badgeEl.textContent = `${d.getMonth() + 1}月${d.getDate()}日`;
+  }
+
+  const todayPractices = practiceRecords.filter(r => r.date === today);
+  const todayMinutes = todayPractices.reduce((s, r) => s + r.durationMinutes, 0);
+  const suggestions = generateTodayPlanSuggestions();
+
+  let summaryHtml = `<div class="planSummary">
+    <div class="planSumItem"><span>今日练习</span><strong>${todayMinutes.toFixed(1)} 分钟</strong></div>
+    <div class="planSumItem"><span>本周累计</span><strong>${getTotalWeekPracticeMinutes(today).toFixed(1)} 分钟</strong></div>
+    <div class="planSumItem"><span>今日练习次</span><strong>${todayPractices.length} 次</strong></div>
+  </div>`;
+
+  if (todayPractices.length > 0) {
+    summaryHtml += `<div class="todayPracticeTinyList">
+      <div class="tinyListTitle">今日练习记录</div>
+      ${todayPractices.slice(0, 3).map(r => `
+        <div class="tinyPracticeItem">
+          <span class="tinyTime">${new Date(r.startTime).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}</span>
+          <span class="tinyTitle">${escapeHtml(r.goalTitle || '自由练习')}</span>
+          <span class="tinyMin">${r.durationMinutes.toFixed(1)}分</span>
+          <span class="tinyBPM">${r.avgBPM}BPM</span>
+        </div>
+      `).join('')}
+    </div>`;
+  }
+
+  let suggestionsHtml = '';
+  if (suggestions.length > 0) {
+    suggestionsHtml = `<div class="planSuggestions">
+      <div class="suggestionTitle">💡 补练建议</div>
+      ${suggestions.map(s => {
+        const bgClass = s.urgency === 'urgent' ? 'sug-urgent' : (s.urgency === 'warning' ? 'sug-warning' : 'sug-info');
+        return `<div class="planSuggestionItem ${bgClass}">
+          <div class="sugTitle">${s.title}</div>
+          <div class="sugMsg">${s.message}</div>
+          ${s.action ? `<button class="primary sugActionBtn" data-action="${s.action.view === 'practice' ? 'select-goal-practice' : 'go-practice'}" data-goal-id="${s.action.goalId}" ${s.action.bpm ? `data-bpm="${s.action.bpm}"` : ''}>🏃 ${s.action.label}</button>` : ''}
+        </div>`;
+      }).join('')}
+    </div>`;
+  } else {
+    suggestionsHtml = `<div class="planSuggestionItem sug-success">
+      <div class="sugTitle">✨ 今日状态良好</div>
+      <div class="sugMsg">所有目标进度正常，暂无紧急补练建议。继续保持！🎉</div>
+    </div>`;
+  }
+
+  container.innerHTML = summaryHtml + suggestionsHtml;
+}
+
+function renderPracticeGoalSelect() {
+  const sel = document.querySelector('#practiceGoalSelect');
+  if (!sel) return;
+  const activeGoals = goals.filter(g => !g.completed);
+  const prevVal = sel.value;
+  sel.innerHTML = `<option value="">-- 无目标自由练习 --</option>` +
+    activeGoals.map(g => `<option value="${g.id}">${escapeHtml(g.title)}${g.targetBPM ? ` (目标${g.targetBPM}BPM)` : ''}</option>`).join('');
+  if (prevVal && goals.find(g => g.id === prevVal)) sel.value = prevVal;
+}
+
+function renderPracticeStats() {
+  const sumContainer = document.querySelector('#practiceStatsSummary');
+  const cntContainer = document.querySelector('#practiceRecordCount');
+  if (!sumContainer || !cntContainer) return;
+
+  const today = new Date().toISOString().slice(0, 10);
+  const weekMin = getTotalWeekPracticeMinutes(today);
+  const todayMin = practiceRecords.filter(r => r.date === today).reduce((s, r) => s + r.durationMinutes, 0);
+  const totalMin = practiceRecords.reduce((s, r) => s + r.durationMinutes, 0);
+  const avgBPM = practiceRecords.length > 0
+    ? Math.round(practiceRecords.filter(r => r.avgBPM).reduce((s, r) => s + r.avgBPM, 0) / Math.max(1, practiceRecords.filter(r => r.avgBPM).length))
+    : 0;
+
+  sumContainer.innerHTML = `
+    <div class="practiceStatCard">
+      <span>今日</span>
+      <strong>${todayMin.toFixed(1)}<small>分</small></strong>
+    </div>
+    <div class="practiceStatCard">
+      <span>本周</span>
+      <strong>${weekMin.toFixed(1)}<small>分</small></strong>
+    </div>
+    <div class="practiceStatCard">
+      <span>累计</span>
+      <strong>${totalMin.toFixed(0)}<small>分</small></strong>
+    </div>
+    <div class="practiceStatCard">
+      <span>平均BPM</span>
+      <strong>${avgBPM}</strong>
+    </div>
+  `;
+  cntContainer.textContent = `${practiceRecords.length} 条记录`;
+}
+
+function renderPracticeRecordList() {
+  const container = document.querySelector('#practiceRecordList');
+  if (!container) return;
+  if (practiceRecords.length === 0) {
+    container.innerHTML = '<p class="empty" style="text-align:center;padding:32px 16px;">暂无练习记录，开始您的第一次练习吧！</p>';
+    return;
+  }
+  const list = practiceRecords.slice(0, 30);
+  container.innerHTML = `
+    <div class="tableWrap">
+      <table>
+        <thead>
+          <tr>
+            <th>日期</th><th>时长</th><th>关联目标</th><th>设置BPM</th><th>平均/最高</th><th>击拍</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${list.map(r => `
+            <tr>
+              <td>${r.date}<br><small style="color:#8899a6;">${new Date(r.startTime).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}</small></td>
+              <td><strong>${r.durationMinutes.toFixed(1)}</strong>分</td>
+              <td>${escapeHtml(r.goalTitle || '-')}</td>
+              <td>${r.practiceBPM}</td>
+              <td>${r.avgBPM || '-'} / ${r.maxBPM || '-'}</td>
+              <td>${r.tapCount || 0}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+    ${practiceRecords.length > 30 ? `<p class="reportMore">显示最近30条，共${practiceRecords.length}条记录</p>` : ''}
+  `;
+}
+
+function renderGoalsView() {
+  document.querySelector('#formSection').style.display = 'none';
+  document.querySelector('#calendarViewSection').style.display = 'none';
+  document.querySelector('#listViewSection').style.display = 'none';
+  document.querySelector('#mapSection').style.display = 'none';
+  document.querySelector('#stationSection').style.display = 'none';
+  document.querySelector('#snapshotSection').style.display = 'none';
+  document.querySelector('#weatherDictSection').style.display = 'none';
+  document.querySelector('#rulesCenterSection').style.display = 'none';
+  document.querySelector('#compareViewSection').style.display = 'none';
+  document.querySelector('#reportViewSection').style.display = 'none';
+  document.querySelector('#practiceViewSection').style.display = 'none';
+  document.querySelector('#oplogSection').style.display = '';
+  document.querySelector('#goalsViewSection').style.display = '';
+
+  renderGoalStats();
+  document.querySelectorAll('.goalFilterTab').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.filter === goalFilterMode);
+  });
+  renderGoalList();
+  renderTodayPlan('#todayPlanContent');
+  renderOpLog();
+}
+
+function renderPracticeView() {
+  document.querySelector('#formSection').style.display = 'none';
+  document.querySelector('#calendarViewSection').style.display = 'none';
+  document.querySelector('#listViewSection').style.display = 'none';
+  document.querySelector('#mapSection').style.display = 'none';
+  document.querySelector('#stationSection').style.display = 'none';
+  document.querySelector('#snapshotSection').style.display = 'none';
+  document.querySelector('#weatherDictSection').style.display = 'none';
+  document.querySelector('#rulesCenterSection').style.display = 'none';
+  document.querySelector('#compareViewSection').style.display = 'none';
+  document.querySelector('#reportViewSection').style.display = 'none';
+  document.querySelector('#goalsViewSection').style.display = 'none';
+  document.querySelector('#oplogSection').style.display = '';
+  document.querySelector('#practiceViewSection').style.display = '';
+
+  renderPracticeGoalSelect();
+  renderPracticeStats();
+  renderPracticeRecordList();
+  renderTodayPlan('#todayPlanInPracticeContent');
+  updateTimerDisplay();
+  document.querySelector('#timerBPMDisplay').textContent = `BPM: ${practiceBPMInput?.value || 60}`;
+  const sel = document.querySelector('#practiceGoalSelect');
+  if (sel) {
+    const disp = document.querySelector('#timerGoalDisplay');
+    if (disp && sel.value) {
+      const g = goals.find(x => x.id === sel.value);
+      disp.textContent = g ? `目标：${g.title} (目标BPM: ${g.targetBPM || '-'})` : '未绑定目标';
+    } else if (disp) {
+      disp.textContent = '未绑定目标';
+    }
+  }
+  renderOpLog();
 }
 
 render();

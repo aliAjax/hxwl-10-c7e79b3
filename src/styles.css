@@ -2768,3 +2768,978 @@ svg path:hover {
 .statCard.new .statValue {
   color: #0d9488;
 }
+
+/* ===== 目标看板 & 练习中心 布局 ===== */
+#goalsViewSection,
+#practiceViewSection {
+  display: none;
+  width: 100%;
+}
+
+.goalsLayout,
+.practiceLayout {
+  display: grid;
+  grid-template-columns: minmax(320px, 1fr) minmax(480px, 2fr);
+  gap: 20px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0 4px;
+}
+
+@media (max-width: 900px) {
+  .goalsLayout,
+  .practiceLayout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.goalLeftCol,
+.goalRightCol,
+.practiceLeftCol,
+.practiceRightCol {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+/* ===== 通用面板 ===== */
+.viewPanel {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 16px 18px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.viewPanel h3 {
+  margin: 0 0 12px 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: #0f172a;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border-bottom: 1px solid #f1f5f9;
+  padding-bottom: 8px;
+}
+
+/* ===== 目标表单 ===== */
+#goalForm {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 14px;
+}
+
+#goalForm .fullWidth {
+  grid-column: 1 / -1;
+}
+
+#goalForm label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: #475569;
+  font-weight: 500;
+}
+
+#goalForm input,
+#goalForm select,
+#goalForm textarea {
+  padding: 7px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 13px;
+  font-family: inherit;
+  background: #ffffff;
+  transition: border-color 0.15s;
+}
+
+#goalForm input:focus,
+#goalForm select:focus,
+#goalForm textarea:focus {
+  outline: none;
+  border-color: #0ea5e9;
+  box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.12);
+}
+
+#goalForm textarea {
+  resize: vertical;
+  min-height: 52px;
+}
+
+.formActionsRow {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 4px;
+  padding-top: 8px;
+  border-top: 1px solid #f1f5f9;
+}
+
+.formActionsRow button {
+  padding: 8px 18px;
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.formActionsRow button.primary {
+  background: linear-gradient(135deg, #0ea5e9, #0284c7);
+  color: #ffffff;
+  box-shadow: 0 2px 4px rgba(14, 165, 233, 0.25);
+}
+
+.formActionsRow button.primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 3px 6px rgba(14, 165, 233, 0.3);
+}
+
+.formActionsRow button.ghost {
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #e2e8f0;
+}
+
+.formActionsRow button.ghost:hover {
+  background: #e2e8f0;
+}
+
+/* ===== 今日计划面板 ===== */
+.todayPlanPanel {
+  background: linear-gradient(135deg, #f0f9ff, #ffffff);
+  border: 1px solid #bae6fd;
+}
+
+.planHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #e0f2fe;
+}
+
+.planHeader h3 {
+  margin: 0;
+  border: none;
+  padding: 0;
+}
+
+.dateBadge {
+  background: #e0f2fe;
+  color: #0369a1;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.planSummary {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.planSumItem {
+  background: #ffffff;
+  border: 1px solid #e0f2fe;
+  border-radius: 8px;
+  padding: 10px 8px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.planSumItem span {
+  font-size: 11px;
+  color: #64748b;
+}
+
+.planSumItem strong {
+  font-size: 15px;
+  color: #0c4a6e;
+  font-weight: 700;
+}
+
+.todayPracticeTinyList {
+  background: #f8fafc;
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin-bottom: 14px;
+}
+
+.tinyListTitle {
+  font-size: 12px;
+  font-weight: 600;
+  color: #0c4a6e;
+  margin-bottom: 6px;
+}
+
+.tinyPracticeItem {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  gap: 8px;
+  padding: 6px 4px;
+  font-size: 12px;
+  border-bottom: 1px solid #e2e8f0;
+  align-items: center;
+}
+
+.tinyPracticeItem:last-child {
+  border-bottom: none;
+}
+
+.tinyTime {
+  color: #64748b;
+  font-variant-numeric: tabular-nums;
+}
+
+.tinyTitle {
+  color: #334155;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tinyMin {
+  color: #0284c7;
+  font-weight: 600;
+}
+
+.tinyBPM {
+  color: #0d9488;
+  font-weight: 600;
+  font-size: 11px;
+  background: #f0fdfa;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.planSuggestions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.suggestionTitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: #0f172a;
+  margin-bottom: 2px;
+}
+
+.planSuggestionItem {
+  border-radius: 10px;
+  padding: 12px 14px;
+  border-left: 4px solid;
+  position: relative;
+  transition: transform 0.1s;
+}
+
+.planSuggestionItem:hover {
+  transform: translateX(2px);
+}
+
+.sug-urgent {
+  background: #fef2f2;
+  border-left-color: #dc2626;
+}
+
+.sug-urgent .sugTitle {
+  color: #991b1b;
+}
+
+.sug-warning {
+  background: #fffbeb;
+  border-left-color: #d97706;
+}
+
+.sug-warning .sugTitle {
+  color: #92400e;
+}
+
+.sug-info {
+  background: #eff6ff;
+  border-left-color: #2563eb;
+}
+
+.sug-info .sugTitle {
+  color: #1e40af;
+}
+
+.sug-success {
+  background: #f0fdf4;
+  border-left-color: #16a34a;
+}
+
+.sug-success .sugTitle {
+  color: #166534;
+}
+
+.sugTitle {
+  font-size: 13px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.sugMsg {
+  font-size: 12px;
+  color: #475569;
+  line-height: 1.5;
+  margin-bottom: 8px;
+}
+
+.sugActionBtn {
+  padding: 6px 12px !important;
+  font-size: 12px !important;
+  border-radius: 6px !important;
+}
+
+/* ===== 目标统计行 ===== */
+.goalStatsRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #f1f5f9;
+  margin-bottom: 12px;
+}
+
+/* ===== 筛选 Tab ===== */
+.goalFilterRow {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.goalFilterTab {
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 500;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  color: #475569;
+  border-radius: 16px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.goalFilterTab:hover {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+}
+
+.goalFilterTab.active {
+  background: linear-gradient(135deg, #0ea5e9, #0284c7);
+  color: #ffffff;
+  border-color: transparent;
+  box-shadow: 0 2px 4px rgba(14, 165, 233, 0.25);
+}
+
+/* ===== 目标卡片 ===== */
+.goalListContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.goalCard {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 14px 16px;
+  transition: all 0.2s;
+  position: relative;
+  overflow: hidden;
+}
+
+.goalCard:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  border-color: #cbd5e1;
+  transform: translateY(-1px);
+}
+
+.goalCard.completed {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+}
+
+.goalCard.completed::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #22c55e, #16a34a);
+}
+
+.goalCard.overdue {
+  background: #fef2f2;
+  border-color: #fecaca;
+}
+
+.goalCard.overdue::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #ef4444, #dc2626);
+}
+
+.goalCardHeader {
+  margin-bottom: 8px;
+}
+
+.goalTitleRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.goalTitle {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: #0f172a;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.goalCard.completed .goalTitle {
+  text-decoration: line-through;
+  color: #64748b;
+}
+
+.goalPriority {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 4px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.goalPriHigh {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.goalPriMedium {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.goalPriLow {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.goalMetaRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  font-size: 11px;
+}
+
+.goalTypeTag {
+  background: #e0e7ff;
+  color: #3730a3;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+.goalDeadline {
+  color: #64748b;
+}
+
+.goalBadge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.goalBadgeSuccess {
+  background: #bbf7d0;
+  color: #166534;
+}
+
+.goalBadgeError {
+  background: #fecaca;
+  color: #991b1b;
+}
+
+.goalBadgeWarning {
+  background: #fed7aa;
+  color: #9a3412;
+}
+
+.goalDesc {
+  margin: 0 0 10px 0;
+  font-size: 12px;
+  color: #64748b;
+  line-height: 1.5;
+  padding: 6px 10px;
+  background: #f8fafc;
+  border-radius: 6px;
+}
+
+.goalMainProgress {
+  margin-bottom: 10px;
+}
+
+.goalMainLabel {
+  font-size: 12px;
+  color: #475569;
+  margin-bottom: 4px;
+}
+
+.goalMainLabel strong {
+  color: #0f172a;
+  font-size: 13px;
+}
+
+.progressBar {
+  width: 100%;
+  height: 8px;
+  background: #e2e8f0;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.progressBar.large {
+  height: 10px;
+}
+
+.progressFill {
+  height: 100%;
+  background: linear-gradient(90deg, #0ea5e9, #0284c7);
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.goalSubProgress {
+  margin-bottom: 6px;
+}
+
+.goalSubLabel {
+  font-size: 11px;
+  color: #64748b;
+  margin-bottom: 3px;
+}
+
+.goalCardActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #f1f5f9;
+}
+
+.goalActionBtn {
+  padding: 6px 12px;
+  font-size: 12px;
+  border-radius: 6px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+  border: none;
+}
+
+.goalActionBtn.primary {
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: #ffffff;
+  box-shadow: 0 2px 4px rgba(16, 185, 129, 0.25);
+}
+
+.goalActionBtn.primary:hover {
+  transform: translateY(-1px);
+}
+
+.goalActionBtn.primary-action {
+  background: linear-gradient(135deg, #0ea5e9, #0284c7) !important;
+  box-shadow: 0 2px 4px rgba(14, 165, 233, 0.25) !important;
+}
+
+.goalActionBtn.ghost {
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #e2e8f0;
+}
+
+.goalActionBtn.ghost:hover {
+  background: #e2e8f0;
+  transform: translateY(-1px);
+}
+
+/* ===== 练习中心 ===== */
+.timerPanel {
+  background: linear-gradient(135deg, #0f172a, #1e293b);
+  color: #f8fafc;
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.3);
+}
+
+.timerHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.timerBadge {
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(4px);
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.timerMeta {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.timerDigits {
+  text-align: center;
+  font-family: 'Courier New', 'SF Mono', Monaco, monospace;
+  font-size: 64px;
+  font-weight: 700;
+  letter-spacing: 4px;
+  margin: 16px 0;
+  padding: 16px 0;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  color: #f0f9ff;
+  text-shadow: 0 2px 8px rgba(14, 165, 233, 0.3);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 600px) {
+  .timerDigits {
+    font-size: 48px;
+  }
+}
+
+.timerControls {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 16px;
+  flex-wrap: wrap;
+}
+
+.timerControls button {
+  padding: 10px 22px;
+  font-size: 14px;
+  font-weight: 600;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.15s;
+  min-width: 100px;
+}
+
+.timerControls button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none !important;
+}
+
+.timerStartBtn {
+  background: linear-gradient(135deg, #22c55e, #16a34a);
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(34, 197, 94, 0.35);
+}
+
+.timerStartBtn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 5px 14px rgba(34, 197, 94, 0.4);
+}
+
+.timerPauseBtn {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.35);
+}
+
+.timerPauseBtn:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.timerStopBtn {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.35);
+}
+
+.timerStopBtn:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+/* ===== BPM 控制器 ===== */
+.bpmControlPanel {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 14px;
+}
+
+.goalSelectRow {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.goalSelectRow label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #475569;
+}
+
+.goalSelectRow select {
+  padding: 8px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 13px;
+  background: #ffffff;
+}
+
+.bpmControlsRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.bpmBtn {
+  width: 38px;
+  height: 38px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  font-size: 14px;
+  font-weight: 700;
+  color: #475569;
+  cursor: pointer;
+  transition: all 0.1s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.bpmBtn:hover {
+  background: #f1f5f9;
+  border-color: #0ea5e9;
+  color: #0284c7;
+}
+
+.bpmBtn:active {
+  transform: scale(0.95);
+}
+
+.bpmInput {
+  width: 80px;
+  padding: 8px;
+  border: 2px solid #0ea5e9;
+  border-radius: 8px;
+  font-size: 18px;
+  font-weight: 700;
+  text-align: center;
+  color: #0c4a6e;
+  font-variant-numeric: tabular-nums;
+  font-family: inherit;
+}
+
+.bpmInput:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.2);
+}
+
+.bpmUnit {
+  font-size: 12px;
+  color: #64748b;
+  font-weight: 600;
+  align-self: flex-end;
+  padding-bottom: 6px;
+}
+
+.metronomeBtn {
+  margin-top: 10px;
+  width: 100%;
+  padding: 8px;
+  border: 1px dashed #cbd5e1;
+  background: #f8fafc;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  color: #475569;
+  transition: all 0.15s;
+}
+
+.metronomeBtn:hover {
+  background: #f1f5f9;
+  border-color: #0d9488;
+  color: #0d9488;
+}
+
+/* ===== TAP 击拍 ===== */
+.tapPanel {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.tapBtn {
+  width: 100%;
+  min-height: 80px;
+  border-radius: 12px;
+  border: 3px dashed #0ea5e9;
+  background: linear-gradient(135deg, #f0f9ff, #ffffff);
+  color: #0284c7;
+  font-size: 20px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.08s ease-out;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 12px;
+}
+
+.tapBtn:hover {
+  background: linear-gradient(135deg, #e0f2fe, #f0f9ff);
+  border-color: #0284c7;
+}
+
+.tapBtn:active {
+  transform: scale(0.96);
+}
+
+.tapBtn small {
+  font-size: 11px;
+  font-weight: 500;
+  color: #64748b;
+}
+
+.tapStatsGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.tapStatItem {
+  text-align: center;
+  padding: 8px 4px;
+  background: #f8fafc;
+  border-radius: 6px;
+}
+
+.tapStatLabel {
+  display: block;
+  font-size: 10px;
+  color: #64748b;
+  margin-bottom: 2px;
+}
+
+.tapStatValue {
+  display: block;
+  font-size: 18px;
+  font-weight: 700;
+  color: #0c4a6e;
+  font-family: 'Courier New', monospace;
+}
+
+/* ===== 练习统计 ===== */
+.practiceStatsRow {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+
+@media (max-width: 600px) {
+  .practiceStatsRow {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.practiceStatCard {
+  background: linear-gradient(135deg, #f0f9ff, #ffffff);
+  border: 1px solid #bae6fd;
+  border-radius: 10px;
+  padding: 10px 8px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.practiceStatCard span {
+  font-size: 11px;
+  color: #64748b;
+}
+
+.practiceStatCard strong {
+  font-size: 18px;
+  font-weight: 700;
+  color: #0369a1;
+}
+
+.practiceStatCard small {
+  font-size: 11px;
+  font-weight: 500;
+  color: #64748b;
+  margin-left: 1px;
+}
+
+.recordCountHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 4px 0 8px 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: #334155;
+}
+
+.practiceRecordList {
+  max-height: 360px;
+  overflow-y: auto;
+}
+
+.empty {
+  color: #94a3b8;
+  font-size: 13px;
+}
