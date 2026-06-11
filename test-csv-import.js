@@ -176,9 +176,25 @@ if (errorRows.length > 0) {
   });
 }
 
-console.log('\n=== Test Summary ===');
+console.log('\n=== Testing Case Insensitivity ===\n');
+
+const mixedCaseHeaders = ['PLACE', 'Date', 'TIME', 'Level', 'Winddir', 'WIND', 'Weather', 'Note'];
+console.log('Testing mixed case headers:', mixedCaseHeaders);
+const mixedCaseMapping = detectFieldMapping(mixedCaseHeaders);
+console.log('Field mapping result:', mixedCaseMapping);
+
+const allRequiredPresent = requiredFields.every(f => mixedCaseMapping[f] !== undefined);
+if (allRequiredPresent) {
+  console.log('✓ All required fields detected with mixed case headers\n');
+} else {
+  console.log('✗ ERROR: Some required fields missing\n');
+  process.exit(1);
+}
+
+console.log('=== Test Summary ===');
 console.log('✓ Comment lines are correctly ignored');
 console.log('✓ Headers are correctly detected');
 console.log('✓ Field mapping works correctly');
 console.log('✓ Sample data passes validation');
+console.log('✓ Case insensitivity works correctly');
 console.log('✓ Template can be imported successfully');
